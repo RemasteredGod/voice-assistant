@@ -14,6 +14,11 @@ const http   = require('http');
 const fs     = require('fs');
 const path   = require('path');
 const { WebSocketServer } = require('ws');
+const busboy = require('busboy');
+
+// Ensure uploads directory exists
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const { handleConnection }                                 = require('./lib/ws-handler');
 const { transcriptBus, getOrCreateBrowserSession,
@@ -21,6 +26,7 @@ const { transcriptBus, getOrCreateBrowserSession,
 const { getReply }                                        = require('./lib/gemini');
 const { synthesizeForBrowser }                            = require('./lib/tts');
 const { makeCall }                                        = require('./lib/twilio-call');
+const { getTicket, getTicketByToken, addFile, getAllTickets } = require('./lib/ticket-store');
 
 const PORT       = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -88,6 +94,8 @@ async function requestHandler(req, res) {
   if (req.method === 'GET') {
     if (p === '/')           { serveFile(res, path.join(PUBLIC_DIR, 'index.html'));      return; }
     if (p === '/simulation') { serveFile(res, path.join(PUBLIC_DIR, 'simulation.html')); return; }
+    if (p === '/tickets')    { serveFile(res, path.join(PUBLIC_DIR, 'tickets.html'));    return; }
+    if (p === '/api/tickets') { json(res, 200, getAllTickets()); return; }
     const ext = path.extname(p);
     if (MIME[ext])           { serveFile(res, path.join(PUBLIC_DIR, p));                return; }
   }
@@ -145,8 +153,8 @@ async function requestHandler(req, res) {
       const base = getPublicBase(req);
       const call = await makeCall(to, base);
 
-      transcriptBus.emit('transcript', { type: 'call_started', callSid: call.Sid, to });
-      json(res, 200, { callSid: call.Sid, status: call.Status });
+      transcriptBus.emit('transcript', { type: 'call_started', callSid: call.sid, to });
+      json(res, 200, { callSid: call.sid, status: call.status });
     } catch (err) {
       console.error('[/api/call]', err.message);
       json(res, 500, { error: err.message });
@@ -210,6 +218,79 @@ async function requestHandler(req, res) {
     const send = (e) => { if (!res.writableEnded) res.write(`data: ${JSON.stringify(e)}\n\n`); };
     transcriptBus.on('transcript', send);
     req.on('close', () => transcriptBus.off('transcript', send));
+    return;
+  }
+
+  // ── GET /upload/:token — serve upload page (temporary link) ─────────────
+  const uploadPageMatch = p.match(/^\/upload\/([a-f0-9]+)$/);
+  if (uploadPageMatch && req.method === 'GET') {
+    serveFile(res, path.join(PUBLIC_DIR, 'upload.html'));
+    return;
+  }
+
+  // ── GET /api/upload/:token — ticket details via token ────────────────────
+  const tokenApiMatch = p.match(/^\/api\/upload\/([a-f0-9]+)$/);
+  if (tokenApiMatch && req.method === 'GET') {
+    const { ticket, error } = getTicketByToken(tokenApiMatch[1]);
+    if (error === 'expired') { json(res, 410, { error: 'This upload link has expired.' }); return; }
+    if (!ticket) { json(res, 404, { error: 'Invalid upload link.' }); return; }
+    json(res, 200, ticket);
+    return;
+  }
+
+  // ── GET /api/ticket/:id — ticket details by ID (for dashboard) ───────────
+  const ticketApiMatch = p.match(/^\/api\/ticket\/([^/]+)$/);
+  if (ticketApiMatch && req.method === 'GET') {
+    const ticket = getTicket(ticketApiMatch[1]);
+    if (!ticket) { json(res, 404, { error: 'Ticket not found' }); return; }
+    json(res, 200, ticket);
+    return;
+  }
+
+  // ── POST /api/upload/:token — file upload via token ──────────────────────
+  const uploadApiMatch = p.match(/^\/api\/upload\/([a-f0-9]+)$/);
+  if (uploadApiMatch && req.method === 'POST') {
+    const { ticket, error } = getTicketByToken(uploadApiMatch[1]);
+    if (error === 'expired') { json(res, 410, { error: 'This upload link has expired.' }); return; }
+    if (!ticket) { json(res, 404, { error: 'Invalid upload link.' }); return; }
+    const ticketId = ticket.id;
+
+    const contentType = req.headers['content-type'] || '';
+    if (!contentType.includes('multipart/form-data')) {
+      json(res, 400, { error: 'Expected multipart/form-data' }); return;
+    }
+
+    const ticketDir = path.join(UPLOADS_DIR, ticketId);
+    fs.mkdirSync(ticketDir, { recursive: true });
+
+    const bb = busboy({ headers: req.headers, limits: { fileSize: 10 * 1024 * 1024 } });
+    const savedFiles = [];
+
+    bb.on('file', (fieldname, fileStream, info) => {
+      const { filename, mimeType } = info;
+      const safeName = `${Date.now()}-${path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const destPath = path.join(ticketDir, safeName);
+      const writeStream = fs.createWriteStream(destPath);
+
+      fileStream.pipe(writeStream);
+      writeStream.on('finish', () => {
+        const meta = { filename: safeName, originalName: filename, mimeType, uploadedAt: new Date().toISOString() };
+        addFile(ticketId, meta);
+        savedFiles.push(meta);
+        console.log(`[UPLOAD] ${ticketId} — saved: ${safeName}`);
+      });
+    });
+
+    bb.on('finish', () => {
+      json(res, 200, { success: true, filesCount: ticket.files.length });
+    });
+
+    bb.on('error', (err) => {
+      console.error('[UPLOAD] busboy error:', err.message);
+      json(res, 500, { error: 'Upload failed' });
+    });
+
+    req.pipe(bb);
     return;
   }
 

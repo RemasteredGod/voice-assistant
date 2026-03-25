@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Upload Documents — DMC Complaint</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+    .container { max-width: 540px; margin: 0 auto; }
+
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .logo-icon {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, #1f6feb, #388bfd);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+    }
+    .logo-text { font-size: 18px; font-weight: 700; color: #388bfd; }
+    .subtitle { color: #8b949e; font-size: 14px; margin-top: 4px; }
+
+    .ticket-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    .ticket-id {
+      font-size: 22px;
+      font-weight: 700;
+      color: #388bfd;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+    .ticket-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+    .ticket-label { color: #8b949e; min-width: 80px; }
+    .ticket-value { color: #e6edf3; }
+    .status-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #1f6feb22;
+      color: #388bfd;
+      border: 1px solid #1f6feb55;
+    }
+
+    .upload-zone {
+      background: #161b22;
+      border: 2px dashed #30363d;
+      border-radius: 12px;
+      padding: 32px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 16px;
+      position: relative;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: #388bfd;
+      background: #1f6feb11;
+    }
+    .upload-zone input[type=file] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .upload-icon { font-size: 40px; margin-bottom: 12px; }
+    .upload-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .upload-hint { font-size: 13px; color: #8b949e; }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      margin-bottom: 12px;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: #1f6feb; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #388bfd; }
+
+    .file-list {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .file-list-header {
+      padding: 10px 16px;
+      font-size: 13px;
+      color: #8b949e;
+      border-bottom: 1px solid #30363d;
+    }
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      border-bottom: 1px solid #21262d;
+      font-size: 14px;
+    }
+    .file-item:last-child { border-bottom: none; }
+    .file-icon { font-size: 20px; }
+    .file-name { flex: 1; color: #e6edf3; word-break: break-all; }
+    .file-size { color: #8b949e; font-size: 12px; white-space: nowrap; }
+    .file-status { font-size: 18px; }
+
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: #21262d;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #1f6feb, #388bfd);
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.3s;
+    }
+
+    .alert {
+      padding: 14px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .alert-success { background: #1a3a2a; border: 1px solid #2ea04355; color: #3fb950; }
+    .alert-error   { background: #3a1a1a; border: 1px solid #f8514955; color: #f85149; }
+
+    .empty-state { text-align: center; padding: 20px; color: #8b949e; font-size: 14px; }
+    .loading { text-align: center; padding: 20px; color: #8b949e; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #30363d; border-top-color: #388bfd; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .success-screen { text-align: center; padding: 40px 20px; display: none; }
+    .success-icon { font-size: 64px; margin-bottom: 16px; }
+    .success-title { font-size: 22px; font-weight: 700; color: #3fb950; margin-bottom: 8px; }
+    .success-sub { color: #8b949e; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">
+        <div class="logo-icon">🏛️</div>
+        <div class="logo-text">Delhi Municipal Corporation</div>
+      </div>
+      <div class="subtitle">Complaint Document Upload</div>
+    </div>
+
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p style="margin-top:12px;font-size:14px;color:#8b949e;">Loading ticket details…</p>
+    </div>
+
+    <div id="errorScreen" style="display:none">
+      <div class="alert alert-error" style="display:block">
+        ❌ Ticket not found. Please check the link sent to you via SMS.
+      </div>
+    </div>
+
+    <div id="mainContent" style="display:none">
+      <div class="ticket-card" id="ticketCard"></div>
+
+      <div id="alertSuccess" class="alert alert-success">✅ Files uploaded successfully! Thank you.</div>
+      <div id="alertError"   class="alert alert-error">❌ Upload failed. Please try again.</div>
+
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept="image/*,.pdf,.doc,.docx" multiple/>
+        <div class="upload-icon">📎</div>
+        <div class="upload-title">Tap to select files</div>
+        <div class="upload-hint">Photos, PDFs, or documents (max 10MB each)</div>
+      </div>
+
+      <div id="selectedFiles" class="file-list" style="display:none">
+        <div class="file-list-header" id="selectedHeader">Selected files</div>
+        <div id="selectedList"></div>
+      </div>
+
+      <div class="progress-bar" id="progressBar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+
+      <button class="btn btn-primary" id="uploadBtn" disabled>Upload Documents</button>
+
+      <div id="uploadedFiles" style="display:none" class="file-list">
+        <div class="file-list-header">Previously uploaded files</div>
+        <div id="uploadedList"></div>
+      </div>
+    </div>
+
+    <div class="success-screen" id="successScreen">
+      <div class="success-icon">✅</div>
+      <div class="success-title">Documents Uploaded!</div>
+      <div class="success-sub">Your files have been attached to the complaint. DMC will review and contact you soon.</div>
+    </div>
+  </div>
+
+  <script src="/upload.js"></script>
+</body>
+</html>
