@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST http://localhost:3000/api/voice)",
+      "Bash(curl:*)",
+      "Bash(netstat -ano)",
+      "Bash(cmd //c \"taskkill /F /PID 8512\" 2>&1)",
+      "Bash(node -e \":*)",
+      "Bash(node -e \"console.log\\(require\\(''@google-cloud/speech/package.json''\\).version\\)\")",
+      "WebFetch(domain:www.twilio.com)",
+      "Bash(cmd //c \"FOR /F \\\\\"tokens=5\\\\\" %a IN \\('netstat -ano ^| findstr :3000 ^| findstr LISTENING'\\) DO taskkill /F /PID %a\")",
+      "Bash(cmd //c \"netstat -ano | findstr :3000 | findstr LISTENING\")",
+      "Bash(cmd //c \"taskkill /F /PID 18868\")",
+      "Bash(cmd //c \"taskkill /F /PID 3408\")",
+      "Bash(cmd //c \"taskkill /F /PID 13212\")",
+      "Bash(cmd //c \"taskkill /F /PID 33404\")",
+      "Bash(cmd //c \"taskkill /F /PID 34296\")"
+    ]
+  }
+}

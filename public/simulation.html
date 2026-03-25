@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Jarvis — Call Simulation</title>
+  <link rel="stylesheet" href="/style.css"/>
+  <style>
+    /* ── Simulation-specific overrides ─────────────────────────── */
+    .sim-hero { text-align: center; }
+    .sim-hero .title { font-size: clamp(1.6rem, 4vw, 2.6rem); }
+
+    .call-card {
+      width: 100%;
+      background: rgba(10,17,32,.8);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+
+    .input-row {
+      display: flex;
+      gap: .75rem;
+      align-items: stretch;
+    }
+
+    .phone-input {
+      flex: 1;
+      padding: .85rem 1.2rem;
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 1rem;
+      letter-spacing: .05rem;
+      outline: none;
+      transition: border-color .25s;
+    }
+    .phone-input:focus { border-color: rgba(0,212,255,.5); }
+    .phone-input::placeholder { color: var(--text-dim); }
+
+    .btn-call {
+      padding: .85rem 1.8rem;
+      background: linear-gradient(135deg, #065f46, #059669);
+      color: #a7f3d0;
+      border: 1px solid rgba(16,185,129,.4);
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: .85rem;
+      font-weight: 700;
+      letter-spacing: .1rem;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all .25s;
+      white-space: nowrap;
+    }
+    .btn-call:hover { background: linear-gradient(135deg, #047857, #10b981); }
+    .btn-call:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-call.calling {
+      background: linear-gradient(135deg, #7c2d12, #c2410c);
+      color: #fed7aa;
+      border-color: rgba(249,115,22,.4);
+    }
+    .btn-call.active {
+      background: linear-gradient(135deg, #1e3a5f, #1d4ed8);
+      color: #bfdbfe;
+      border-color: rgba(59,130,246,.4);
+    }
+
+    .call-status {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      font-size: .75rem;
+      color: var(--text-dim);
+      letter-spacing: .05rem;
+      min-height: 1.2rem;
+    }
+    .status-pulse {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      flex-shrink: 0;
+      transition: background .4s, box-shadow .4s;
+    }
+    .status-pulse.ringing  { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; animation: blink 1s ease-in-out infinite; }
+    .status-pulse.connected{ background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+    .status-pulse.ended    { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+
+    /* Orb compact for sim page */
+    .orb-wrapper { width: 160px; height: 160px; }
+    .orb         { width: 90px;  height: 90px; }
+    .ring-outer  { width: 150px; height: 150px; }
+    .ring-mid    { width: 128px; height: 128px; }
+    .ring-inner  { width: 108px; height: 108px; }
+
+    .sim-orb-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    /* Transcript sizing */
+    .transcript-body { min-height: 260px; max-height: 420px; }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: .68rem;
+      color: var(--text-dim);
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: .75rem;
+      letter-spacing: .1rem;
+      transition: color .2s;
+    }
+    .back-link:hover { color: var(--blue); }
+  </style>
+</head>
+<body>
+<div class="bg-grid"></div>
+
+<main class="container">
+
+  <!-- Nav -->
+  <div style="width:100%;display:flex;justify-content:space-between;align-items:center;">
+    <a href="/" class="back-link">← Dashboard</a>
+    <span style="font-size:.65rem;color:var(--text-dim);letter-spacing:.15rem;">CALL SIMULATION</span>
+  </div>
+
+  <!-- Hero -->
+  <header class="sim-hero">
+    <div class="logo-line">
+      <span class="logo-dot"></span>
+      <span class="logo-text">J.A.R.V.I.S</span>
+      <span class="logo-dot"></span>
+    </div>
+    <h1 class="title">Call & Transcribe</h1>
+    <p class="subtitle">Enter a number — Jarvis calls it and deciphers the conversation</p>
+  </header>
+
+  <!-- Orb -->
+  <section class="sim-orb-section">
+    <div class="orb-wrapper">
+      <div class="orb-ring ring-outer"></div>
+      <div class="orb-ring ring-mid"></div>
+      <div class="orb-ring ring-inner"></div>
+      <div class="orb idle" id="orb">
+        <div class="orb-core"></div>
+        <div class="orb-shine"></div>
+      </div>
+    </div>
+    <div class="state-badge" id="state-badge">
+      <span class="state-dot"></span>
+      <span id="state-text">IDLE</span>
+    </div>
+  </section>
+
+  <!-- Call Card -->
+  <section class="call-card">
+    <div class="input-row">
+      <input
+        type="tel"
+        class="phone-input"
+        id="phone-input"
+        placeholder="+91 98765 43210"
+        value="+918509047388"
+        autocomplete="tel"
+        maxlength="15"
+      />
+      <button class="btn-call" id="call-btn">
+        📞 &nbsp;Call Now
+      </button>
+    </div>
+
+    <div class="call-status">
+      <span class="status-pulse" id="status-pulse"></span>
+      <span id="status-text">Enter a phone number and click Call Now</span>
+    </div>
+
+    <div class="meta-row">
+      <span id="call-sid-display"></span>
+      <span id="duration-display"></span>
+    </div>
+  </section>
+
+  <!-- Live Transcript -->
+  <section class="transcript-section">
+    <div class="transcript-header">
+      <span class="live-dot" id="live-dot"></span>
+      <span>LIVE TRANSCRIPT</span>
+      <button class="clear-btn" id="clear-btn" title="Clear">✕</button>
+    </div>
+    <div class="transcript-body" id="transcript-body">
+      <div class="transcript-empty" id="transcript-empty">
+        Transcript will appear here once the call connects…
+      </div>
+    </div>
+  </section>
+
+  <!-- Status bar -->
+  <footer class="status-bar">
+    <span id="status-conn" class="status-item">● Connecting…</span>
+    <span class="status-item">JARVIS v1.0</span>
+    <span class="status-item" id="msg-count">Messages: 0</span>
+  </footer>
+
+</main>
+
+<script src="/simulation.js"></script>
+</body>
+</html>

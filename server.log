@@ -1,0 +1,3 @@
+[ngrok] invalid tunnel configuration
+  → Install ngrok CLI: https://ngrok.com/download
+  → Or set NGROK_AUTH_TOKEN in .env for authenticated tunnels
