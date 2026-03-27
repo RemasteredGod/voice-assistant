@@ -1,3 +1,22 @@
+# Secrets
 .env
 google-credentials.json
+
+# Dependencies
 node_modules/
+mobile/node_modules/
+
+# Runtime data
+uploads/
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Expo build output
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/android/
+mobile/ios/

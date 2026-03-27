@@ -5,8 +5,196 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Call Simulation | Samadhan</title>
   <link rel="stylesheet" href="theme.css">
+  <style>
+    body { padding-bottom: 0; background: var(--color-bg); }
+
+    /* ── Page layout ─────────────────────────────────────────────────── */
+    .sim-layout {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 1.5rem;
+      align-items: start;
+      padding: 2rem 0;
+    }
+    @media (max-width: 900px) {
+      .sim-layout { grid-template-columns: 1fr; }
+    }
+
+    /* ── Left panel ──────────────────────────────────────────────────── */
+    .panel-left { display: flex; flex-direction: column; gap: 1rem; }
+
+    .agent-card {
+      background: var(--color-navy);
+      border-radius: var(--radius-lg);
+      padding: 2rem;
+      color: white;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .agent-card::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(circle at 30% 20%, rgba(255,153,51,0.15), transparent 60%);
+    }
+    .agent-avatar {
+      width: 80px; height: 80px;
+      background: rgba(255,255,255,0.1);
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem;
+      margin: 0 auto 1rem;
+    }
+    .agent-avatar.active { border-color: #4ade80; box-shadow: 0 0 0 6px rgba(74,222,128,0.15); }
+    .agent-avatar.ringing { animation: ring-pulse 1s ease-in-out infinite; }
+    @keyframes ring-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,153,51,0.4); }
+      50%       { box-shadow: 0 0 0 12px rgba(255,153,51,0); }
+    }
+    .agent-name   { font-size: 1.2rem; font-weight: 700; font-family: var(--font-heading); margin-bottom: 0.25rem; }
+    .agent-role   { font-size: 0.8rem; color: rgba(255,255,255,0.6); font-family: var(--font-ui); letter-spacing: 0.05em; }
+    .agent-status {
+      display: inline-flex; align-items: center; gap: 6px;
+      margin-top: 1rem;
+      padding: 0.35rem 1rem;
+      border-radius: 50px;
+      background: rgba(255,255,255,0.1);
+      font-family: var(--font-ui); font-size: 0.75rem; font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #94a3b8; flex-shrink: 0; }
+    .status-dot.green  { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+    .status-dot.orange { background: var(--color-saffron); animation: pulse 1s infinite; }
+    .status-dot.red    { background: #f87171; }
+
+    /* ── Call controls ───────────────────────────────────────────────── */
+    .call-controls { background: white; border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1.5rem; }
+    .call-controls .label { margin-bottom: 0.5rem; display: block; }
+    .phone-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .phone-row input { flex: 1; font-size: 1rem; font-weight: 700; color: var(--color-navy); }
+    .btn-call {
+      width: 100%; padding: 0.9rem;
+      font-size: 1rem; font-weight: 700;
+      border-radius: var(--radius-md);
+      border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: all 0.2s;
+      font-family: var(--font-ui);
+    }
+    .btn-call.start { background: var(--color-green-india); color: white; }
+    .btn-call.start:hover { background: var(--color-green-light); }
+    .btn-call.end   { background: #ef4444; color: white; }
+    .btn-call.end:hover { background: #dc2626; }
+    .btn-call:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Call stats ──────────────────────────────────────────────────── */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .stat-item {
+      background: var(--color-surface-muted);
+      border-radius: var(--radius-md);
+      padding: 0.75rem 1rem;
+    }
+    .stat-label { font-size: 0.7rem; font-weight: 700; color: var(--color-text-muted); font-family: var(--font-ui); text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-value { font-size: 1rem; font-weight: 800; color: var(--color-navy); font-family: var(--font-ui); margin-top: 2px; }
+
+    /* ── Right panel — transcript ────────────────────────────────────── */
+    .panel-right { display: flex; flex-direction: column; gap: 1rem; }
+
+    .transcript-card {
+      background: white;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 200px);
+      min-height: 500px;
+    }
+    .transcript-toolbar {
+      background: var(--color-surface-muted);
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--color-border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .toolbar-left  { display: flex; align-items: center; gap: 0.75rem; }
+    .toolbar-right { display: flex; align-items: center; gap: 1rem; }
+    .transcript-feed {
+      flex: 1; overflow-y: auto;
+      padding: 1.5rem;
+      display: flex; flex-direction: column;
+      gap: 1rem;
+      scroll-behavior: smooth;
+    }
+    .empty-state {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: var(--color-text-muted);
+      padding: 4rem 2rem;
+      text-align: center;
+    }
+    .empty-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.4; }
+
+    /* ── Message bubbles ─────────────────────────────────────────────── */
+    .msg-row { display: flex; gap: 0.75rem; align-items: flex-end; }
+    .msg-row.caller  { flex-direction: row-reverse; }
+    .msg-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.9rem; flex-shrink: 0;
+    }
+    .msg-avatar.ai     { background: var(--color-navy); }
+    .msg-avatar.caller { background: var(--color-green-india); }
+    .bubble {
+      max-width: 75%;
+      padding: 0.75rem 1rem;
+      border-radius: 18px;
+      font-family: var(--font-ui);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+    .bubble.ai     { background: var(--color-surface-muted); color: var(--color-navy); border-bottom-left-radius: 4px; }
+    .bubble.caller { background: var(--color-navy); color: white; border-bottom-right-radius: 4px; }
+    .bubble-meta { font-size: 0.7rem; color: var(--color-text-muted); margin-top: 0.25rem; text-align: right; }
+    .msg-row.caller .bubble-meta { text-align: left; }
+
+    /* ── System events ───────────────────────────────────────────────── */
+    .sys-event {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--color-text-muted);
+      font-family: var(--font-ui);
+      display: flex; align-items: center; gap: 0.5rem;
+      justify-content: center;
+    }
+    .sys-event::before, .sys-event::after {
+      content: ''; flex: 1; height: 1px; background: var(--color-border);
+    }
+
+    /* ── Live indicator ──────────────────────────────────────────────── */
+    .live-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 0.25rem 0.75rem;
+      border-radius: 50px;
+      background: rgba(74,222,128,0.15);
+      border: 1px solid rgba(74,222,128,0.4);
+      font-family: var(--font-ui); font-size: 0.72rem; font-weight: 700;
+      color: #15803d; letter-spacing: 0.05em;
+    }
+    .live-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; animation: pulse 1.5s infinite; }
+
+    /* ── Connection bar ──────────────────────────────────────────────── */
+    .conn-bar {
+      background: var(--color-navy);
+      color: white;
+      padding: 0.6rem 0;
+      font-family: var(--font-ui); font-size: 0.78rem; font-weight: 600;
+      position: fixed; bottom: 0; width: 100%; z-index: 100;
+    }
+    .conn-bar-inner { display: flex; justify-content: space-between; align-items: center; }
+  </style>
 </head>
-<body style="padding-bottom: 60px;">
+<body>
 
 <nav class="navbar">
   <div class="container">
@@ -22,78 +210,138 @@
         <li><a href="/" class="nav-link">Home</a></li>
         <li><a href="/samadhan" class="nav-link">Browser Demo</a></li>
         <li><a href="/my-tickets" class="nav-link">Track Ticket</a></li>
+        <li><a href="/login" class="nav-link">Admin</a></li>
       </ul>
     </div>
   </div>
 </nav>
 
-<section class="section">
-  <div class="container" style="max-width: 800px;">
-    <div class="text-center mb-4">
-      <span class="label">Live Test Environment</span>
-      <h1>AI Call Simulation</h1>
-      <p class="lead">Enter a phone number to trigger a live AI voice call. Experience how Samadhan interacts with citizens in real-time.</p>
+<section style="padding: 1.5rem 0 4rem;">
+  <div class="container">
+    <!-- Page header -->
+    <div class="mb-4">
+      <div class="flex-between" style="align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <span class="label">Live Test Environment</span>
+          <h1 style="margin-bottom: 0.25rem;">AI Call Simulation</h1>
+          <p class="ui-text" style="color: var(--color-text-muted);">Trigger a live Twilio call and watch the AI conversation unfold in real-time.</p>
+        </div>
+        <div id="live-badge" class="live-badge" style="visibility: hidden;">
+          <span class="dot"></span> LIVE
+        </div>
+      </div>
     </div>
 
-    <div class="card mb-4">
-      <div class="form-group">
-        <label class="label">Phone Number (with Country Code)</label>
-        <div style="display: flex; gap: 1rem;">
-          <input
-            type="tel"
-            id="phone-input"
-            placeholder="+91 98765 43210"
-            value="+918509047388"
-            autocomplete="tel"
-            maxlength="15"
-            style="flex: 1; font-size: 1.2rem; font-weight: 700; color: var(--color-navy);"
-          />
-          <button class="btn btn-primary" id="call-btn" style="padding: 0 2rem;">
-            📞 Call Now
+    <!-- Two-column layout -->
+    <div class="sim-layout">
+
+      <!-- ── LEFT: Controls ── -->
+      <div class="panel-left">
+
+        <!-- Agent card -->
+        <div class="agent-card">
+          <div class="agent-avatar" id="agent-avatar">🤖</div>
+          <div class="agent-name">Samadhan AI</div>
+          <div class="agent-role">DELHI MUNICIPAL CORPORATION · AI AGENT</div>
+          <div class="agent-status">
+            <span class="status-dot" id="status-dot"></span>
+            <span id="status-label">Idle</span>
+          </div>
+        </div>
+
+        <!-- Call controls -->
+        <div class="call-controls">
+          <span class="label">Dial Number</span>
+          <div class="phone-row">
+            <input
+              type="tel"
+              id="phone-input"
+              placeholder="+91 98765 43210"
+              value="+918509047388"
+              maxlength="15"
+            />
+          </div>
+          <button class="btn-call start" id="call-btn">
+            <span id="call-btn-icon">📞</span>
+            <span id="call-btn-text">Start Call</span>
           </button>
         </div>
-      </div>
 
-      <div id="status-text" class="text-center ui-text" style="background: var(--color-surface-muted); padding: 1rem; border-radius: var(--radius-md); color: var(--color-navy); font-weight: 700;">
-        Ready to start simulation
-      </div>
-
-      <div class="flex-between mt-1 ui-text" style="color: var(--color-text-muted); font-size: 0.75rem;">
-        <span id="call-sid-display"></span>
-        <span id="duration-display"></span>
-      </div>
-    </div>
-
-    <div class="transcript-box">
-      <div class="transcript-header">
-        <div class="status-item">
-          <span class="live-dot"></span>
-          <span class="label" style="margin-bottom: 0;">Live Transcript</span>
+        <!-- Stats -->
+        <div class="card" style="padding: 1.25rem;">
+          <span class="label" style="display: block; margin-bottom: 0.75rem;">Session Stats</span>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-label">Duration</div>
+              <div class="stat-value" id="duration-display">—</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Messages</div>
+              <div class="stat-value" id="msg-count">0</div>
+            </div>
+            <div class="stat-item" style="grid-column: span 2;">
+              <div class="stat-label">Call SID</div>
+              <div class="stat-value" id="call-sid-display" style="font-size: 0.75rem; word-break: break-all;">—</div>
+            </div>
+          </div>
         </div>
-        <button id="clear-btn" class="ui-text" style="background: none; border: none; cursor: pointer; color: var(--color-text-muted);">Clear</button>
+
+        <!-- Status text -->
+        <div id="status-text" style="
+          background: var(--color-surface-muted);
+          border-radius: var(--radius-md);
+          padding: 0.75rem 1rem;
+          font-family: var(--font-ui);
+          font-size: 0.85rem;
+          font-weight: 600;
+          color: var(--color-navy);
+          text-align: center;
+        ">Ready to start simulation</div>
+
       </div>
-      <div class="transcript-body" id="transcript-body">
-        <div class="text-center" style="color: var(--color-text-muted); padding: 4rem 0;">
-          <p class="ui-text">Transcript will appear here once the call connects...</p>
+
+      <!-- ── RIGHT: Transcript ── -->
+      <div class="panel-right">
+        <div class="transcript-card">
+          <div class="transcript-toolbar">
+            <div class="toolbar-left">
+              <span class="live-dot" style="width: 8px; height: 8px;"></span>
+              <span class="label" style="margin-bottom: 0;">Live Transcript</span>
+            </div>
+            <div class="toolbar-right">
+              <span id="status-conn" class="ui-text" style="font-size: 0.8rem; color: var(--color-text-muted);">● Connecting…</span>
+              <button id="clear-btn" class="ui-text" style="background: none; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0.3rem 0.75rem; cursor: pointer; font-size: 0.78rem; color: var(--color-text-muted);">Clear</button>
+            </div>
+          </div>
+
+          <div class="transcript-feed" id="transcript-body">
+            <div class="empty-state" id="empty-state">
+              <div class="empty-icon">💬</div>
+              <p class="ui-text" style="font-weight: 600; color: var(--color-navy);">No conversation yet</p>
+              <p class="ui-text" style="font-size: 0.85rem; margin-top: 0.5rem;">Enter a phone number and click Start Call.<br>The full transcript will stream here in real-time.</p>
+            </div>
+          </div>
         </div>
       </div>
+
     </div>
   </div>
 </section>
 
-<footer class="status-bar">
+<div class="conn-bar">
   <div class="container">
-    <div class="status-bar-inner">
-      <div class="status-item">
-        <span id="status-conn" style="color: #4ade80;">● Connected</span>
-        <span style="opacity: 0.5;">|</span>
-        <span>SAMADHAN v1.0</span>
+    <div class="conn-bar-inner">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="color: #4ade80;">●</span>
+        <span>SAMADHAN v2.0</span>
+        <span style="opacity: 0.4;">|</span>
+        <span style="opacity: 0.7;">samadhan.rgod.tech</span>
       </div>
-      <div id="msg-count" class="ui-text">Messages: 0</div>
+      <div style="opacity: 0.7;">Gemini 3.1 Flash · Twilio Media Streams</div>
     </div>
   </div>
-</footer>
+</div>
 
-<script src="/simulation.js"></script>
+<script src="/simulation.js?v=3"></script>
 </body>
 </html>

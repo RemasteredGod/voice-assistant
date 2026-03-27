@@ -4,7 +4,28 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Upload Documents | Samadhan</title>
-  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="/theme.css">
+  <style>
+    .ticket-id    { font-size: 1.1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 1rem; }
+    .ticket-row   { display: flex; justify-content: space-between; align-items: flex-start; padding: 0.4rem 0; border-bottom: 1px solid var(--color-border); gap: 1rem; }
+    .ticket-row:last-child { border-bottom: none; }
+    .ticket-label { font-size: 0.8rem; font-weight: 700; color: var(--color-text-muted); white-space: nowrap; }
+    .ticket-value { font-size: 0.9rem; color: var(--color-navy); font-weight: 600; text-align: right; }
+    .status-badge { background: var(--color-surface-muted); border-radius: 4px; padding: 2px 8px; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+    .upload-zone  { border: 2px dashed var(--color-border); border-radius: var(--radius-md); padding: 2.5rem 1rem; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; background: var(--color-bg); }
+    .upload-zone:hover, .upload-zone.drag-over { border-color: var(--color-navy); background: var(--color-surface-muted); }
+    .upload-zone input[type=file] { display: none; }
+    .file-item    { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--color-border); }
+    .file-item:last-child { border-bottom: none; }
+    .file-icon    { font-size: 1.4rem; flex-shrink: 0; }
+    .file-name    { flex: 1; font-size: 0.88rem; word-break: break-all; }
+    .file-size    { font-size: 0.78rem; color: var(--color-text-muted); white-space: nowrap; }
+    .file-status  { font-size: 1rem; flex-shrink: 0; }
+    .progress-bar { width: 100%; height: 8px; background: var(--color-surface-muted); border-radius: 4px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--color-navy); width: 0%; transition: width 0.3s ease; }
+    .alert-error  { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; border-radius: var(--radius-md); padding: 0.75rem 1rem; font-size: 0.9rem; margin-bottom: 1rem; }
+    .alert-success { background: #f0fdf4; border: 1px solid #86efac; color: #166534; border-radius: var(--radius-md); padding: 0.75rem 1rem; font-size: 0.9rem; margin-bottom: 1rem; }
+  </style>
 </head>
 <body>
 
@@ -24,46 +45,86 @@
 </nav>
 
 <section class="section">
-  <div class="container" style="max-width: 600px;">
-    <div class="text-center mb-4">
-      <span class="label">Document Submission</span>
-      <h1>Submit Evidence</h1>
-      <p class="lead">Upload photos or documents related to your ticket. This helps our officials resolve your issue faster.</p>
+  <div class="container" style="max-width: 620px;">
+
+    <!-- Loading -->
+    <div id="loading" class="text-center" style="padding: 4rem 0;">
+      <p class="ui-text" style="color: var(--color-text-muted);">Loading ticket details…</p>
     </div>
 
-    <div class="card">
-      <div id="upload-section">
-        <div class="flex-between mb-2" style="border-bottom: 1px solid var(--color-border); padding-bottom: 0.5rem;">
-          <span class="ui-text" style="font-weight: 800; color: var(--color-navy);" id="displayTicketId">Loading Ticket...</span>
-          <span class="badge badge-pending" id="displayStatus">Active</span>
-        </div>
+    <!-- Error -->
+    <div id="errorScreen" style="display:none;" class="text-center">
+      <div class="card">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">❌</div>
+        <p class="alert-error">Invalid or expired link. Please check the SMS sent to you.</p>
+        <a href="/" class="btn btn-secondary">Go Home</a>
+      </div>
+    </div>
 
-        <div class="form-group">
-          <label class="label">Select Files (JPG, PNG, PDF)</label>
-          <input type="file" id="fileInput" multiple style="padding: 2rem; border: 2px dashed var(--color-border); background: var(--color-bg); text-align: center;">
-        </div>
-
-        <button id="uploadBtn" class="btn btn-primary" style="width: 100%; padding: 1rem;" disabled>Upload Selected Files</button>
-        
-        <div id="progressContainer" style="display: none; margin-top: 1.5rem;">
-          <div style="width: 100%; height: 8px; background: var(--color-surface-muted); border-radius: 4px; overflow: hidden;">
-            <div id="progressBar" style="width: 0%; height: 100%; background: var(--color-navy); transition: width 0.3s;"></div>
-          </div>
-          <p id="statusText" class="ui-text mt-1 text-center" style="font-size: 0.8rem;"></p>
-        </div>
+    <!-- Main upload UI -->
+    <div id="mainContent" style="display:none;">
+      <div class="text-center mb-4">
+        <span class="label">Document Submission</span>
+        <h1>Upload Evidence</h1>
+        <p class="lead">Attach photos or documents to help officials resolve your complaint faster.</p>
       </div>
 
-      <div id="success-section" style="display: none;" class="text-center">
+      <!-- Ticket summary -->
+      <div class="card mb-4">
+        <div id="ticketCard"></div>
+      </div>
+
+      <!-- Upload card -->
+      <div class="card">
+        <p id="alertSuccess" class="alert-success" style="display:none;"></p>
+        <p id="alertError"   class="alert-error"   style="display:none;"></p>
+
+        <!-- Already uploaded files -->
+        <div id="uploadedFiles" style="display:none; margin-bottom:1.5rem;">
+          <p class="label mb-1">Previously Uploaded</p>
+          <div id="uploadedList"></div>
+        </div>
+
+        <!-- Drop zone -->
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.pdf,.mp4,.mov">
+          <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📎</div>
+          <p class="ui-text" style="font-weight: 700; color: var(--color-navy);">Click to select or drag & drop files</p>
+          <p class="ui-text" style="font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.25rem;">JPG, PNG, PDF, MP4 — max 10 MB each</p>
+        </div>
+
+        <!-- Selected files list -->
+        <div id="selectedFiles" style="display:none; margin-top: 1.25rem;">
+          <p class="label mb-1" id="selectedHeader">Files selected</p>
+          <div id="selectedList"></div>
+        </div>
+
+        <!-- Progress -->
+        <div id="progressBar" style="display:none; margin-top: 1.5rem;">
+          <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+          <p class="ui-text text-center mt-1" style="font-size: 0.8rem; color: var(--color-text-muted);">Uploading…</p>
+        </div>
+
+        <button id="uploadBtn" class="btn btn-primary" style="width:100%; padding:1rem; margin-top:1.5rem;" disabled>
+          Upload Files
+        </button>
+      </div>
+
+      <p class="ui-text text-center mt-2" style="color: var(--color-text-muted); font-size: 0.78rem;">
+        Maximum 10 MB per file. Up to 10 files per ticket.
+      </p>
+    </div>
+
+    <!-- Success screen -->
+    <div id="successScreen" style="display:none;" class="text-center">
+      <div class="card">
         <div style="font-size: 4rem; color: var(--color-green-india); margin-bottom: 1rem;">✅</div>
-        <h3>Upload Complete</h3>
-        <p class="ui-text mb-2">Your documents have been securely attached to ticket <span id="successTicketId" style="font-weight: 700;"></span>.</p>
-        <a href="/my-tickets" class="btn btn-primary">Track Status</a>
+        <h3>Upload Complete!</h3>
+        <p class="ui-text mb-3">Your documents have been securely attached to your complaint ticket.</p>
+        <a href="/my-tickets" class="btn btn-primary">Track My Ticket</a>
       </div>
     </div>
-    
-    <div class="mt-4 text-center">
-      <p class="ui-text" style="color: var(--color-text-muted); font-size: 0.8rem;">Note: Maximum file size 5MB per file. Up to 5 files per ticket.</p>
-    </div>
+
   </div>
 </section>
 
@@ -73,21 +134,11 @@
   </div>
 </footer>
 
-<script src="/upload.js"></script>
+<script src="/upload.js?v=2"></script>
 <script>
-  // Simple UI glue for upload.js
-  const fileInput = document.getElementById('fileInput');
-  const uploadBtn = document.getElementById('uploadBtn');
-  const displayTicketId = document.getElementById('displayTicketId');
-  
-  const urlParams = new URLSearchParams(window.location.search);
-  const tId = urlParams.get('ticketId');
-  if (tId) {
-    displayTicketId.textContent = tId;
-  }
-
-  fileInput.addEventListener('change', () => {
-    uploadBtn.disabled = fileInput.files.length === 0;
+  // Wire drop zone click → file input
+  document.getElementById('uploadZone').addEventListener('click', () => {
+    document.getElementById('fileInput').click();
   });
 </script>
 

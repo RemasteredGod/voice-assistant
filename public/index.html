@@ -23,7 +23,7 @@
         <li><a href="#services" class="nav-link">Services</a></li>
         <li><a href="#how" class="nav-link">How it Works</a></li>
         <li><a href="/my-tickets" class="nav-link">Track Ticket</a></li>
-        <li><a href="/login" class="nav-link">Admin Login</a></li>
+        <li><a href="/login" class="nav-link">Login</a></li>
         <li><a href="/simulation" class="btn btn-primary">Call Simulation</a></li>
       </ul>
     </div>
@@ -172,10 +172,10 @@
 <script>
 async function loadStats() {
   try {
-    const res = await fetch('/api/tickets');
+    const res = await fetch('/api/stats');
     if (res.ok) {
-      const tickets = await res.json();
-      animateCount(document.getElementById('cntTickets'), tickets.length);
+      const { ticketCount } = await res.json();
+      animateCount(document.getElementById('cntTickets'), ticketCount);
     }
   } catch {}
 }

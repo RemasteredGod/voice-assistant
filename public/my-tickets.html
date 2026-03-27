@@ -3,8 +3,20 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Track My Ticket | Samadhan</title>
+  <title>My Tickets | Samadhan</title>
   <link rel="stylesheet" href="theme.css">
+  <style>
+    .ticket-card   { background: var(--color-surface-muted); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 1.5rem; }
+    .ticket-grid   { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+    .ticket-field  { display: flex; flex-direction: column; gap: 0.25rem; }
+    .field-label   { font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .field-value   { font-size: 0.9rem; color: var(--color-navy); font-weight: 600; }
+    .ticket-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .severity-bar  { height: 4px; border-radius: 2px; background: var(--color-border); overflow: hidden; margin-top: 0.25rem; }
+    .severity-fill { height: 100%; border-radius: 2px; }
+    .note-item     { padding: 0.5rem 0.75rem; background: var(--color-bg); border-radius: 6px; border-left: 3px solid var(--color-navy); margin-bottom: 0.5rem; }
+    .note-by       { font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.25rem; }
+  </style>
 </head>
 <body>
 
@@ -20,8 +32,8 @@
       </a>
       <ul class="nav-links">
         <li><a href="/" class="nav-link">Home</a></li>
-        <li><a href="/simulation" class="nav-link">Simulation</a></li>
-        <li><a href="/login" class="nav-link">Login</a></li>
+        <li><a href="/login" class="nav-link" id="nav-login">Login</a></li>
+        <li><button class="btn btn-secondary" id="nav-logout" style="display:none;" onclick="logout()">Logout</button></li>
       </ul>
     </div>
   </div>
@@ -32,28 +44,34 @@
     <div class="text-center mb-4">
       <span class="label">Citizen Portal</span>
       <h1>Track Your Ticket</h1>
-      <p class="lead">Enter your Ticket ID or Mobile Number to check the real-time status of your complaint or service request.</p>
+      <p class="lead" id="page-lead">Login with your mobile number to view your complaint tickets, or search by Ticket ID.</p>
     </div>
 
+    <!-- Search by Ticket ID (always visible) -->
     <div class="card mb-4">
-      <div class="form-group" style="margin-bottom: 2rem;">
-        <label class="label">Ticket ID or Mobile Number</label>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="label">Search by Ticket ID</label>
         <div style="display: flex; gap: 1rem;">
-          <input type="text" id="ticketId" placeholder="e.g. DMC-20260325-0001 or +91..." style="flex: 1;">
-          <button class="btn btn-primary" onclick="trackTicket()">Search</button>
+          <input type="text" id="ticketIdInput" placeholder="e.g. DMC-20260325-0001" style="flex: 1;">
+          <button class="btn btn-primary" id="searchBtn">Search</button>
         </div>
       </div>
+    </div>
 
-      <div id="results" style="display: none;">
-        <h3 class="mb-1" style="border-bottom: 1px solid var(--color-border); padding-bottom: 0.5rem;">Ticket Information</h3>
-        <div id="ticket-list" style="display: flex; flex-direction: column; gap: 1.5rem;">
-          <!-- Ticket items will be injected here -->
-        </div>
-      </div>
-      
-      <div id="no-results" style="display: none;" class="text-center">
-        <p class="ui-text" style="color: var(--color-text-muted);">No tickets found for this ID/Number. Please verify and try again.</p>
-      </div>
+    <!-- Loading -->
+    <div id="loading" style="display:none;" class="text-center" style="padding: 2rem 0;">
+      <p class="ui-text" style="color: var(--color-text-muted);">Loading…</p>
+    </div>
+
+    <!-- Error -->
+    <div id="error-msg" style="display:none; background:#fef2f2; border:1px solid #fca5a5; color:#b91c1c; border-radius:var(--radius-md); padding:0.75rem 1rem; margin-bottom:1rem; font-size:0.9rem;"></div>
+
+    <!-- Ticket list -->
+    <div id="ticket-list" style="display: flex; flex-direction: column; gap: 1.5rem;"></div>
+
+    <!-- Empty state -->
+    <div id="empty-state" style="display:none;" class="text-center card">
+      <p class="ui-text" style="color: var(--color-text-muted); padding: 2rem 0;">No tickets found.</p>
     </div>
   </div>
 </section>
@@ -65,70 +83,147 @@
 </footer>
 
 <script>
-async function trackTicket() {
-  const query = document.getElementById('ticketId').value.trim();
-  if (!query) return;
+(function () {
+  'use strict';
 
-  const resultsDiv = document.getElementById('results');
-  const ticketList = document.getElementById('ticket-list');
-  const noResults = document.getElementById('no-results');
+  const ticketList  = document.getElementById('ticket-list');
+  const emptyState  = document.getElementById('empty-state');
+  const errorMsg    = document.getElementById('error-msg');
+  const loadingEl   = document.getElementById('loading');
+  const navLogin    = document.getElementById('nav-login');
+  const navLogout   = document.getElementById('nav-logout');
 
-  resultsDiv.style.display = 'none';
-  noResults.style.display = 'none';
-  ticketList.innerHTML = '';
+  function showError(msg) { errorMsg.textContent = msg; errorMsg.style.display = 'block'; }
+  function clearError()   { errorMsg.style.display = 'none'; }
+  function setLoading(v)  { loadingEl.style.display = v ? 'block' : 'none'; }
 
-  try {
-    const res = await fetch(`/api/track?query=${encodeURIComponent(query)}`);
-    if (res.ok) {
-      const tickets = await res.json();
-      if (tickets.length === 0) {
-        noResults.style.display = 'block';
-      } else {
-        tickets.forEach(t => {
-          const card = document.createElement('div');
-          card.style.padding = '1.5rem';
-          card.style.background = 'var(--color-surface-muted)';
-          card.style.borderRadius = 'var(--radius-md)';
-          card.style.border = '1px solid var(--color-border)';
-
-          card.innerHTML = `
-            <div class="flex-between mb-1">
-              <span class="ui-text" style="font-weight: 800; color: var(--color-navy); font-size: 1.1rem;">${t.id}</span>
-              <span class="badge ${t.status === 'Open' ? 'badge-pending' : 'badge-success'}">${t.status}</span>
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
-              <div>
-                <span class="label">Citizen Name</span>
-                <p class="ui-text">${t.customerName || 'N/A'}</p>
-              </div>
-              <div>
-                <span class="label">Date Created</span>
-                <p class="ui-text">${new Date(t.createdAt).toLocaleDateString()}</p>
-              </div>
-              <div style="grid-column: span 2;">
-                <span class="label">Details</span>
-                <p class="ui-text" style="font-style: italic;">"${t.details || 'No additional details provided'}"</p>
-              </div>
-            </div>
-            ${t.adminNotes ? `
-            <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--color-border);">
-              <span class="label">Admin Updates</span>
-              <p class="ui-text" style="color: var(--color-green-india); font-weight: 600;">${t.adminNotes}</p>
-            </div>` : ''}
-            <div class="mt-1">
-               <a href="/upload.html?ticketId=${t.id}" class="ui-text" style="color: var(--color-navy); font-weight: 700; text-decoration: underline;">Upload Documents/Photos →</a>
-            </div>
-          `;
-          ticketList.appendChild(card);
-        });
-        resultsDiv.style.display = 'block';
+  // ── Auth check ──────────────────────────────────────────────────────────────
+  async function checkSession() {
+    try {
+      const res = await fetch('/api/auth/me');
+      if (res.ok) {
+        const { role } = await res.json();
+        if (role === 'citizen') {
+          navLogin.style.display  = 'none';
+          navLogout.style.display = 'block';
+          document.getElementById('page-lead').textContent = 'Showing all tickets linked to your mobile number.';
+          loadMyTickets();
+        } else if (role === 'admin') {
+          window.location.href = '/tickets';
+        }
       }
-    }
-  } catch (err) {
-    console.error(err);
-    alert('Failed to fetch ticket status');
+    } catch (_) {}
   }
-}
+
+  async function loadMyTickets() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/my-tickets');
+      if (res.status === 401) { setLoading(false); return; }
+      if (!res.ok) throw new Error('Failed to load tickets');
+      const tickets = await res.json();
+      setLoading(false);
+      renderTickets(tickets);
+    } catch (err) {
+      setLoading(false);
+      showError(err.message);
+    }
+  }
+
+  // ── Search by ticket ID ─────────────────────────────────────────────────────
+  document.getElementById('searchBtn').addEventListener('click', searchTicket);
+  document.getElementById('ticketIdInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') searchTicket();
+  });
+
+  async function searchTicket() {
+    const id = document.getElementById('ticketIdInput').value.trim();
+    if (!id) return;
+    clearError();
+    ticketList.innerHTML = '';
+    emptyState.style.display = 'none';
+    setLoading(true);
+
+    try {
+      const res = await fetch(`/api/ticket/${encodeURIComponent(id)}`);
+      setLoading(false);
+      if (res.status === 404) { emptyState.style.display = 'block'; return; }
+      if (!res.ok) throw new Error('Failed to fetch ticket');
+      const ticket = await res.json();
+      renderTickets([ticket]);
+    } catch (err) {
+      setLoading(false);
+      showError(err.message);
+    }
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+  function renderTickets(tickets) {
+    ticketList.innerHTML = '';
+    if (!tickets || tickets.length === 0) {
+      emptyState.style.display = 'block';
+      return;
+    }
+    emptyState.style.display = 'none';
+    tickets.forEach(t => ticketList.appendChild(buildCard(t)));
+  }
+
+  function buildCard(t) {
+    const el       = document.createElement('div');
+    el.className   = 'ticket-card';
+    const severity = t.severityScore || 1;
+    const sevColor = severity >= 8 ? '#ef4444' : severity >= 5 ? '#f59e0b' : '#22c55e';
+    const sevPct   = (severity / 10) * 100;
+    const uploadLink = t.uploadToken
+      ? `<a href="/upload/${t.uploadToken}" class="ui-text" style="color:var(--color-navy);font-weight:700;text-decoration:underline;">📎 Upload Documents →</a>`
+      : '';
+    const notes = (t.notes || []).map(n => `
+      <div class="note-item">
+        <p class="ui-text" style="font-size:0.88rem;">${esc(n.text)}</p>
+        <p class="note-by">${esc(n.by)} — ${new Date(n.at).toLocaleString('en-IN')}</p>
+      </div>`).join('');
+
+    el.innerHTML = `
+      <div class="ticket-header">
+        <span class="ui-text" style="font-weight:800;color:var(--color-navy);font-size:1.05rem;">${esc(t.id)}</span>
+        <span class="badge ${t.status === 'Open' ? 'badge-pending' : 'badge-success'}">${esc(t.status)}</span>
+      </div>
+      <div class="ticket-grid">
+        <div class="ticket-field">
+          <span class="field-label">Name</span>
+          <span class="field-value">${esc(t.name)}</span>
+        </div>
+        <div class="ticket-field">
+          <span class="field-label">Date</span>
+          <span class="field-value">${new Date(t.createdAt).toLocaleDateString('en-IN')}</span>
+        </div>
+        <div class="ticket-field" style="grid-column:span 2;">
+          <span class="field-label">Complaint</span>
+          <span class="field-value" style="font-weight:500;">${esc(t.complaint)}</span>
+        </div>
+        <div class="ticket-field" style="grid-column:span 2;">
+          <span class="field-label">Severity — ${severity}/10</span>
+          <div class="severity-bar"><div class="severity-fill" style="width:${sevPct}%;background:${sevColor};"></div></div>
+        </div>
+      </div>
+      ${notes ? `<div style="margin-top:1rem;border-top:1px dashed var(--color-border);padding-top:1rem;"><p class="field-label mb-1">Official Updates</p>${notes}</div>` : ''}
+      ${uploadLink ? `<div style="margin-top:1rem;padding-top:1rem;border-top:1px dashed var(--color-border);">${uploadLink}</div>` : ''}
+    `;
+    return el;
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+  }
+  window.logout = logout;
+
+  checkSession();
+})();
 </script>
 
 </body>

@@ -3,12 +3,22 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Admin Login | Samadhan</title>
+  <title>Login | Samadhan</title>
   <link rel="stylesheet" href="theme.css">
   <style>
     body { display: flex; flex-direction: column; min-height: 100vh; }
     .login-container { flex: 1; display: flex; align-items: center; justify-content: center; padding: 2rem; }
-    .login-card { width: 100%; max-width: 400px; }
+    .login-card { width: 100%; max-width: 420px; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid var(--color-border); margin-bottom: 2rem; }
+    .tab-btn { flex: 1; padding: 0.75rem; background: none; border: none; border-bottom: 3px solid transparent; margin-bottom: -2px; cursor: pointer; font-weight: 700; font-size: 0.85rem; color: var(--color-text-muted); letter-spacing: 0.05em; transition: all 0.15s; }
+    .tab-btn.active { border-bottom-color: var(--color-navy); color: var(--color-navy); }
+    .step { display: none; }
+    .step.active { display: block; }
+    .otp-inputs { display: flex; gap: 0.5rem; justify-content: center; margin: 1rem 0; }
+    .otp-inputs input { width: 48px; height: 56px; text-align: center; font-size: 1.4rem; font-weight: 700; border: 2px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg); color: var(--color-navy); }
+    .otp-inputs input:focus { border-color: var(--color-navy); outline: none; }
+    .resend-link { background: none; border: none; color: var(--color-navy); cursor: pointer; font-size: 0.85rem; font-weight: 600; text-decoration: underline; }
+    .hint { font-size: 0.82rem; color: var(--color-text-muted); margin-bottom: 1.5rem; line-height: 1.5; }
   </style>
 </head>
 <body>
@@ -30,133 +40,245 @@
 
 <div class="login-container">
   <div class="card login-card text-center">
-    <div style="font-size: 3rem; margin-bottom: 1rem;">🔐</div>
-    <h2 style="margin-bottom: 0.5rem;">Official Login</h2>
-    <p class="ui-text mb-2" style="color: var(--color-text-muted);">Access AI Helpline Management Portal</p>
-    
-    <div style="display: flex; gap: 1rem; border-bottom: 1px solid var(--color-border); margin-bottom: 2rem;">
-      <button id="tab-login" class="ui-text" style="flex: 1; padding: 0.75rem; background: none; border: none; border-bottom: 3px solid var(--color-navy); color: var(--color-navy); cursor: pointer; font-weight: 700;">LOGIN</button>
-      <button id="tab-register" class="ui-text" style="flex: 1; padding: 0.75rem; background: none; border: none; border-bottom: 3px solid transparent; color: var(--color-text-muted); cursor: pointer; font-weight: 700;">REGISTER</button>
+    <div style="font-size: 3rem; margin-bottom: 0.5rem;">🔐</div>
+    <h2 style="margin-bottom: 0.25rem;">Login</h2>
+    <p class="ui-text mb-2" style="color: var(--color-text-muted);">Delhi Municipal Corporation Portal</p>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tab-citizen">Citizen</button>
+      <button class="tab-btn" id="tab-admin">Admin</button>
     </div>
 
-    <form id="login-form">
-      <div class="form-group" style="text-align: left;">
-        <label class="label">Email Address</label>
-        <input type="email" id="email" placeholder="name@dmc.gov.in" required>
+    <!-- ── Citizen flow ─────────────────────────────────────────── -->
+    <div id="citizen-panel">
+      <!-- Step 1: Phone -->
+      <div class="step active" id="c-step1">
+        <div class="form-group" style="text-align: left;">
+          <label class="label">Mobile Number</label>
+          <input type="tel" id="c-phone" placeholder="98765 43210" maxlength="10" inputmode="numeric">
+        </div>
+        <p class="hint">Enter your 10-digit mobile number. An OTP will be sent via SMS.</p>
+        <button class="btn btn-primary" style="width:100%; padding:1rem;" id="c-send-btn">Send OTP</button>
       </div>
-      <div class="form-group" style="text-align: left;">
-        <label class="label">Password</label>
-        <input type="password" id="password" placeholder="••••••••" required>
-      </div>
-      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 1rem;">Authenticate</button>
-    </form>
 
-    <form id="register-form" style="display: none;">
-      <div class="form-group" style="text-align: left;">
-        <label class="label">Full Name</label>
-        <input type="text" id="reg-name" placeholder="Official Name" required>
+      <!-- Step 2: OTP -->
+      <div class="step" id="c-step2">
+        <p class="ui-text mb-1" style="font-weight:700; color:var(--color-navy);">OTP sent to <span id="c-phone-display"></span></p>
+        <p class="hint">Enter the 6-digit code from SMS. Valid for 5 minutes.</p>
+        <div class="otp-inputs" id="c-otp-inputs">
+          <input type="text" maxlength="1" inputmode="numeric">
+          <input type="text" maxlength="1" inputmode="numeric">
+          <input type="text" maxlength="1" inputmode="numeric">
+          <input type="text" maxlength="1" inputmode="numeric">
+          <input type="text" maxlength="1" inputmode="numeric">
+          <input type="text" maxlength="1" inputmode="numeric">
+        </div>
+        <button class="btn btn-primary" style="width:100%; padding:1rem; margin-bottom:1rem;" id="c-verify-btn">Verify & Login</button>
+        <p class="ui-text"><button class="resend-link" id="c-resend">Resend OTP</button></p>
       </div>
-      <div class="form-group" style="text-align: left;">
-        <label class="label">Official Email</label>
-        <input type="email" id="reg-email" placeholder="name@dmc.gov.in" required>
+    </div>
+
+    <!-- ── Admin flow ──────────────────────────────────────────── -->
+    <div id="admin-panel" style="display:none;">
+      <!-- Step 1: Email -->
+      <div class="step active" id="a-step1">
+        <div class="form-group" style="text-align: left;">
+          <label class="label">Official Email</label>
+          <input type="email" id="a-email" placeholder="name@dmc.gov.in">
+        </div>
+        <p class="hint">Enter your authorised admin email. An OTP will be sent to verify.</p>
+        <button class="btn btn-primary" style="width:100%; padding:1rem;" id="a-send-btn">Send OTP</button>
       </div>
-      <div class="form-group" style="text-align: left;">
-        <label class="label">Password</label>
-        <input type="password" id="reg-password" placeholder="Minimum 8 characters" required>
+
+      <!-- Step 2: OTP -->
+      <div class="step" id="a-step2">
+        <p class="ui-text mb-1" style="font-weight:700; color:var(--color-navy);">OTP sent to <span id="a-email-display"></span></p>
+        <p class="hint">Enter the 6-digit code from email. Valid for 5 minutes.</p>
+        <div class="otp-inputs" id="a-otp-inputs">
+          <input type="text" maxlength="1" inputmode="numeric">
+          <input type="text" maxlength="1" inputmode="numeric">
+          <input type="text" maxlength="1" inputmode="numeric">
+          <input type="text" maxlength="1" inputmode="numeric">
+          <input type="text" maxlength="1" inputmode="numeric">
+          <input type="text" maxlength="1" inputmode="numeric">
+        </div>
+        <button class="btn btn-primary" style="width:100%; padding:1rem; margin-bottom:1rem;" id="a-verify-btn">Verify & Login</button>
+        <p class="ui-text"><button class="resend-link" id="a-resend">Resend OTP</button></p>
       </div>
-      <button type="submit" class="btn btn-saffron" style="width: 100%; padding: 1rem;">Create Account</button>
-    </form>
-    
-    <p id="error-msg" class="ui-text mt-1" style="color: #ef4444; font-weight: 700; display: none;"></p>
+    </div>
+
+    <p id="error-msg" class="ui-text mt-1" style="color:#ef4444; font-weight:700; display:none;"></p>
   </div>
 </div>
 
 <footer class="footer" style="padding: 2rem 0;">
   <div class="container text-center">
-    <p class="ui-text" style="color: rgba(255,255,255,0.5);">© 2026 Samadhan. Authorized Personnel Only.</p>
+    <p class="ui-text" style="color: rgba(255,255,255,0.5);">© 2026 Samadhan. Authorised Personnel Only.</p>
   </div>
 </footer>
 
 <script>
-  const tabLogin = document.getElementById('tab-login');
-  const tabRegister = document.getElementById('tab-register');
-  const loginForm = document.getElementById('login-form');
-  const registerForm = document.getElementById('register-form');
+(function () {
+  'use strict';
+
   const errorMsg = document.getElementById('error-msg');
+  function showError(msg) { errorMsg.textContent = msg; errorMsg.style.display = 'block'; }
+  function clearError()   { errorMsg.style.display = 'none'; }
 
-  tabLogin.onclick = () => {
-    tabLogin.style.borderColor = 'var(--color-navy)';
-    tabLogin.style.color = 'var(--color-navy)';
-    tabRegister.style.borderColor = 'transparent';
-    tabRegister.style.color = 'var(--color-text-muted)';
-    loginForm.style.display = 'block';
-    registerForm.style.display = 'none';
-    errorMsg.style.display = 'none';
-  };
+  // ── Tabs ────────────────────────────────────────────────────────────────────
+  const tabCitizen  = document.getElementById('tab-citizen');
+  const tabAdmin    = document.getElementById('tab-admin');
+  const citizenPanel = document.getElementById('citizen-panel');
+  const adminPanel   = document.getElementById('admin-panel');
 
-  tabRegister.onclick = () => {
-    tabRegister.style.borderColor = 'var(--color-navy)';
-    tabRegister.style.color = 'var(--color-navy)';
-    tabLogin.style.borderColor = 'transparent';
-    tabLogin.style.color = 'var(--color-text-muted)';
-    registerForm.style.display = 'block';
-    loginForm.style.display = 'none';
-    errorMsg.style.display = 'none';
-  };
+  tabCitizen.addEventListener('click', () => {
+    tabCitizen.classList.add('active');
+    tabAdmin.classList.remove('active');
+    citizenPanel.style.display = 'block';
+    adminPanel.style.display   = 'none';
+    clearError();
+  });
+  tabAdmin.addEventListener('click', () => {
+    tabAdmin.classList.add('active');
+    tabCitizen.classList.remove('active');
+    adminPanel.style.display   = 'block';
+    citizenPanel.style.display = 'none';
+    clearError();
+  });
 
-  loginForm.onsubmit = async (e) => {
-    e.preventDefault();
-    errorMsg.style.display = 'none';
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
+  // ── OTP input auto-advance ───────────────────────────────────────────────
+  function wireOtpInputs(containerId) {
+    const boxes = document.querySelectorAll(`#${containerId} input`);
+    boxes.forEach((box, i) => {
+      box.addEventListener('input', () => {
+        box.value = box.value.replace(/\D/g, '');
+        if (box.value && i < boxes.length - 1) boxes[i + 1].focus();
+      });
+      box.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !box.value && i > 0) boxes[i - 1].focus();
+      });
+      box.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const digits = (e.clipboardData.getData('text') || '').replace(/\D/g, '');
+        boxes.forEach((b, j) => { b.value = digits[j] || ''; });
+        const last = Math.min(digits.length, boxes.length) - 1;
+        if (last >= 0) boxes[last].focus();
+      });
+    });
+    return () => Array.from(boxes).map(b => b.value).join('');
+  }
 
+  const getCitizenOtp = wireOtpInputs('c-otp-inputs');
+  const getAdminOtp   = wireOtpInputs('a-otp-inputs');
+
+  // ── Citizen flow ─────────────────────────────────────────────────────────
+  let citizenPhone = '';
+
+  document.getElementById('c-send-btn').addEventListener('click', async () => {
+    clearError();
+    const raw = document.getElementById('c-phone').value.replace(/\D/g, '');
+    if (raw.length !== 10) { showError('Enter a valid 10-digit mobile number'); return; }
+    citizenPhone = raw;
+
+    const btn = document.getElementById('c-send-btn');
+    btn.disabled = true; btn.textContent = 'Sending…';
     try {
-      const res = await fetch('/api/login', {
+      const res = await fetch('/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ identifier: citizenPhone, type: 'citizen' }),
       });
       const data = await res.json();
-      if (res.ok) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        window.location.href = '/tickets';
-      } else {
-        errorMsg.textContent = data.message || 'Login failed';
-        errorMsg.style.display = 'block';
-      }
-    } catch (err) {
-      errorMsg.textContent = 'Network error. Please try again.';
-      errorMsg.style.display = 'block';
-    }
-  };
+      if (!res.ok) { showError(data.error || 'Failed to send OTP'); return; }
+      document.getElementById('c-phone-display').textContent = '+91 ' + citizenPhone;
+      document.getElementById('c-step1').classList.remove('active');
+      document.getElementById('c-step2').classList.add('active');
+      document.querySelector('#c-otp-inputs input').focus();
+    } catch { showError('Network error. Please try again.'); }
+    finally { btn.disabled = false; btn.textContent = 'Send OTP'; }
+  });
 
-  registerForm.onsubmit = async (e) => {
-    e.preventDefault();
-    errorMsg.style.display = 'none';
-    const name = document.getElementById('reg-name').value;
-    const email = document.getElementById('reg-email').value;
-    const password = document.getElementById('reg-password').value;
+  document.getElementById('c-verify-btn').addEventListener('click', async () => {
+    clearError();
+    const otp = getCitizenOtp();
+    if (otp.length !== 6) { showError('Enter the complete 6-digit OTP'); return; }
 
+    const btn = document.getElementById('c-verify-btn');
+    btn.disabled = true; btn.textContent = 'Verifying…';
     try {
-      const res = await fetch('/api/register', {
+      const res = await fetch('/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password })
+        body: JSON.stringify({ identifier: citizenPhone, otp, type: 'citizen' }),
       });
       const data = await res.json();
-      if (res.ok) {
-        tabLogin.click();
-        alert('Registration successful! Please login.');
-      } else {
-        errorMsg.textContent = data.message || 'Registration failed';
-        errorMsg.style.display = 'block';
-      }
-    } catch (err) {
-      errorMsg.textContent = 'Network error. Please try again.';
-      errorMsg.style.display = 'block';
-    }
-  };
+      if (!res.ok) { showError(data.error || 'Invalid OTP'); return; }
+      const next = new URLSearchParams(window.location.search).get('next') || '/my-tickets';
+      window.location.href = next;
+    } catch { showError('Network error. Please try again.'); }
+    finally { btn.disabled = false; btn.textContent = 'Verify & Login'; }
+  });
+
+  document.getElementById('c-resend').addEventListener('click', () => {
+    document.getElementById('c-step2').classList.remove('active');
+    document.getElementById('c-step1').classList.add('active');
+    clearError();
+  });
+
+  // ── Admin flow ───────────────────────────────────────────────────────────
+  let adminEmail = '';
+
+  document.getElementById('a-send-btn').addEventListener('click', async () => {
+    clearError();
+    const email = document.getElementById('a-email').value.trim().toLowerCase();
+    if (!email.includes('@')) { showError('Enter a valid email address'); return; }
+    adminEmail = email;
+
+    const btn = document.getElementById('a-send-btn');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: adminEmail, type: 'admin' }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showError(data.error || 'Failed to send OTP. Is this email authorised?'); return; }
+      document.getElementById('a-email-display').textContent = adminEmail;
+      document.getElementById('a-step1').classList.remove('active');
+      document.getElementById('a-step2').classList.add('active');
+      document.querySelector('#a-otp-inputs input').focus();
+    } catch { showError('Network error. Please try again.'); }
+    finally { btn.disabled = false; btn.textContent = 'Send OTP'; }
+  });
+
+  document.getElementById('a-verify-btn').addEventListener('click', async () => {
+    clearError();
+    const otp = getAdminOtp();
+    if (otp.length !== 6) { showError('Enter the complete 6-digit OTP'); return; }
+
+    const btn = document.getElementById('a-verify-btn');
+    btn.disabled = true; btn.textContent = 'Verifying…';
+    try {
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: adminEmail, otp, type: 'admin' }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showError(data.error || 'Invalid OTP'); return; }
+      const next = new URLSearchParams(window.location.search).get('next') || '/tickets';
+      window.location.href = next;
+    } catch { showError('Network error. Please try again.'); }
+    finally { btn.disabled = false; btn.textContent = 'Verify & Login'; }
+  });
+
+  document.getElementById('a-resend').addEventListener('click', () => {
+    document.getElementById('a-step2').classList.remove('active');
+    document.getElementById('a-step1').classList.add('active');
+    clearError();
+  });
+})();
 </script>
 
 </body>

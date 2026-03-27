@@ -5,8 +5,97 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Browser Demo | Samadhan</title>
   <link rel="stylesheet" href="theme.css">
+  <style>
+    body { padding-bottom: 60px; }
+
+    /* ── Orb ──────────────────────────────────────────────────────────── */
+    .orb-wrap {
+      width: 160px; height: 160px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1.5rem;
+      cursor: pointer;
+      transition: box-shadow 0.3s;
+    }
+    .orb-wrap.idle        { box-shadow: 0 0 0 0 transparent; }
+    .orb-wrap.listening   { box-shadow: 0 0 0 24px rgba(19,136,8,0.15), 0 0 60px rgba(19,136,8,0.1); }
+    .orb-wrap.thinking    { box-shadow: 0 0 0 24px rgba(15,44,107,0.15), 0 0 60px rgba(15,44,107,0.1); }
+    .orb-wrap.speaking    { box-shadow: 0 0 0 24px rgba(255,153,51,0.15), 0 0 60px rgba(255,153,51,0.1); }
+
+    .orb {
+      width: 120px; height: 120px;
+      border-radius: 50%;
+      background: var(--color-navy);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.8rem;
+      transition: background 0.3s, transform 0.15s;
+      box-shadow: 0 8px 32px rgba(15,44,107,0.25);
+      user-select: none;
+    }
+    .orb:hover        { transform: scale(1.05); }
+    .orb.listening    { background: var(--color-green-india); animation: orb-pulse 1.2s ease-in-out infinite; }
+    .orb.thinking     { background: var(--color-navy-light); animation: orb-spin 1.5s linear infinite; }
+    .orb.speaking     { background: var(--color-saffron); animation: orb-pulse 0.8s ease-in-out infinite; }
+
+    @keyframes orb-pulse {
+      0%, 100% { transform: scale(1); }
+      50%       { transform: scale(1.08); }
+    }
+    @keyframes orb-spin {
+      0%   { box-shadow: 4px 0 16px rgba(255,153,51,0.6); }
+      50%  { box-shadow: -4px 0 16px rgba(19,136,8,0.6); }
+      100% { box-shadow: 4px 0 16px rgba(255,153,51,0.6); }
+    }
+
+    /* ── State pill ──────────────────────────────────────────────────── */
+    .state-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 0.5rem 1.5rem;
+      border-radius: 50px;
+      font-family: var(--font-ui);
+      font-size: 0.8rem; font-weight: 700;
+      letter-spacing: 0.1em;
+      transition: all 0.25s;
+      border: 1.5px solid;
+    }
+    .state-pill           { background: var(--color-surface-muted); color: var(--color-navy); border-color: var(--color-navy); }
+    .state-pill.listening { background: rgba(19,136,8,0.1);  color: var(--color-green-india); border-color: var(--color-green-india); }
+    .state-pill.thinking  { background: rgba(15,44,107,0.08); color: var(--color-navy); border-color: var(--color-navy); }
+    .state-pill.speaking  { background: rgba(255,153,51,0.1); color: #c05a00; border-color: var(--color-saffron); }
+
+    /* ── Hint text ──────────────────────────────────────────────────── */
+    #hint {
+      font-family: var(--font-ui);
+      font-size: 0.9rem;
+      color: var(--color-text-muted);
+      min-height: 1.5rem;
+      text-align: center;
+      margin-top: 0.75rem;
+      font-style: italic;
+      transition: color 0.2s;
+    }
+    #hint.error { color: #ef4444; font-style: normal; font-weight: 600; }
+
+    /* ── Warning banner ─────────────────────────────────────────────── */
+    #warning {
+      background: #fff7ed;
+      border: 1px solid var(--color-saffron);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.5rem;
+      color: #c05a00;
+      font-family: var(--font-ui);
+      font-size: 0.9rem;
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    /* ── Message classes ─────────────────────────────────────────────── */
+    .msg.user { align-self: flex-end; background: var(--color-navy); color: white; border-bottom-right-radius: 0; }
+    .msg.ai   { align-self: flex-start; background: var(--color-surface-muted); color: var(--color-navy); border-bottom-left-radius: 0; }
+    .msg-label { display: block; font-size: 0.72rem; font-weight: 700; opacity: 0.7; margin-bottom: 0.4rem; font-family: var(--font-ui); letter-spacing: 0.05em; }
+  </style>
 </head>
-<body style="padding-bottom: 60px;">
+<body>
 
 <nav class="navbar">
   <div class="container">
@@ -30,18 +119,33 @@
 <section class="section">
   <div class="container" style="max-width: 800px;">
     <div class="text-center mb-4">
-      <span class="label">Browser Assistant Demo</span>
+      <span class="label">Browser Voice Demo</span>
       <h1>Interact with Samadhan</h1>
-      <p class="lead">Experience Samadhan AI directly in your browser. Speak naturally to file complaints or inquire about municipal services.</p>
+      <p class="lead">Speak naturally to file complaints or inquire about municipal services — directly in your browser.</p>
     </div>
 
+    <!-- Browser compatibility warning (hidden by default, shown by app.js if needed) -->
+    <div id="warning" style="display:none;">
+      ⚠️ Your browser does not support the Web Speech API. Please use <strong>Chrome</strong> or <strong>Edge</strong> for voice support.
+    </div>
+
+    <!-- Orb UI — clickable circle that changes state -->
     <div class="text-center mb-2">
-      <div id="pill" class="badge badge-pending" style="padding: 0.5rem 1.5rem; background: var(--color-surface-muted); color: var(--color-navy); border-color: var(--color-navy); display: inline-flex; align-items: center; gap: 8px;">
-        <span class="live-dot" id="liveDot" style="margin-right: 0;"></span>
-        <span id="pillTxt" class="ui-text" style="font-weight: 700;">READY TO START</span>
+      <div id="orbWrap" class="orb-wrap idle">
+        <div id="orb" class="orb">🎙️</div>
       </div>
+
+      <!-- State pill badge -->
+      <div id="pill" class="state-pill" style="margin-bottom: 0.5rem;">
+        <span class="live-dot" id="liveDot" style="margin-right: 0;"></span>
+        <span id="pillTxt">TAP TO START</span>
+      </div>
+
+      <!-- Hint / current status text -->
+      <p id="hint">Click the orb to talk to Samadhan</p>
     </div>
 
+    <!-- Conversation transcript -->
     <div class="transcript-box">
       <div class="transcript-header">
         <div class="status-item">
@@ -51,13 +155,13 @@
       </div>
       <div class="transcript-body" id="msgs">
         <div id="empty" class="text-center" style="color: var(--color-text-muted); padding: 4rem 0;">
-          <p class="ui-text">Speak or click the microphone to start the conversation...</p>
+          <p class="ui-text">Tap the orb above to start speaking with Samadhan…</p>
         </div>
       </div>
     </div>
 
     <div class="text-center mt-2">
-       <p class="ui-text" style="color: var(--color-text-muted); font-size: 0.8rem;">Powered by Gemini 2.5 Flash & Google Speech Services</p>
+      <p class="ui-text" style="color: var(--color-text-muted); font-size: 0.8rem;">Powered by Gemini 2.5 Flash · Requires microphone access</p>
     </div>
   </div>
 </section>

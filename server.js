@@ -49,8 +49,10 @@ const MIME = {
 function getPublicBase(req) {
   const env = process.env.BASE_URL;
   if (env) return env.replace(/\/$/, '');
-  const proto = req.headers['x-forwarded-proto'] || 'http';
-  return `${proto}://${req.headers.host}`;
+  // Trust GCP / nginx proxy headers for HTTPS
+  const proto = (req.headers['x-forwarded-proto'] || 'http').split(',')[0].trim();
+  const host  = req.headers['x-forwarded-host'] || req.headers.host;
+  return `${proto}://${host}`;
 }
 
 function serveFile(res, filePath) {
@@ -60,7 +62,11 @@ function serveFile(res, filePath) {
   }
   fs.readFile(resolved, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not Found'); return; }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(resolved)] || 'application/octet-stream' });
+    const ext = path.extname(resolved);
+    const headers = { 'Content-Type': MIME[ext] || 'application/octet-stream' };
+    // Prevent browsers caching JS/CSS so changes are always picked up
+    if (ext === '.js' || ext === '.css') headers['Cache-Control'] = 'no-store';
+    res.writeHead(200, headers);
     res.end(data);
   });
 }
@@ -131,6 +137,12 @@ async function requestHandler(req, res) {
     if (p === '/api/tickets') {
       if (!session || session.role !== 'admin') { json(res, 401, { error: 'Unauthorized' }); return; }
       json(res, 200, getAllTickets());
+      return;
+    }
+
+    // Public stats (used by homepage counter — no auth required)
+    if (p === '/api/stats') {
+      json(res, 200, { ticketCount: getAllTickets().length });
       return;
     }
 
@@ -339,9 +351,10 @@ async function requestHandler(req, res) {
     const role  = type === 'admin' ? 'admin' : 'citizen';
     const token = createSession(id, role);
 
+    const isHttps = (req.headers['x-forwarded-proto'] || '').includes('https') || process.env.BASE_URL?.startsWith('https');
     res.writeHead(200, {
       'Content-Type': 'application/json',
-      'Set-Cookie':   `session=${token}; HttpOnly; Path=/; Max-Age=86400; SameSite=Lax`,
+      'Set-Cookie':   `session=${token}; HttpOnly; Path=/; Max-Age=86400; SameSite=Lax${isHttps ? '; Secure' : ''}`,
     });
     res.end(JSON.stringify({ ok: true, role, id }));
     return;
