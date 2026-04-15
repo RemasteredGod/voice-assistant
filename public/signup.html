@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Start Free Trial | CallPilot AI</title>
+  <link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<nav class="navbar">
+  <div class="container">
+    <div class="nav-inner">
+      <a href="/" class="nav-brand">
+        <div style="font-size: 2rem;">📞</div>
+        <div class="brand-text">
+          <span class="brand-name">CallPilot AI</span>
+          <span class="brand-sub">Self-Serve SaaS Onboarding</span>
+        </div>
+      </a>
+      <a href="/pricing" class="btn btn-secondary">View Pricing</a>
+    </div>
+  </div>
+</nav>
+
+<section class="section">
+  <div class="container" style="max-width: 680px;">
+    <div class="card">
+      <h1>Start Your 14-Day Free Trial</h1>
+      <p class="lead">Create your workspace and get login access instantly.</p>
+
+      <div id="error" style="display:none; padding:0.75rem 1rem; border:1px solid #fecaca; background:#fff1f2; color:#9f1239; border-radius:8px; margin-bottom:1rem;"></div>
+      <div id="success" style="display:none; padding:0.75rem 1rem; border:1px solid #86efac; background:#f0fdf4; color:#166534; border-radius:8px; margin-bottom:1rem;"></div>
+
+      <form id="signupForm">
+        <div class="form-group">
+          <label class="label">Company Name</label>
+          <input type="text" id="companyName" required maxlength="100" placeholder="Acme Home Services"/>
+        </div>
+        <div class="form-group">
+          <label class="label">Your Name</label>
+          <input type="text" id="ownerName" required maxlength="80" placeholder="Alex Carter"/>
+        </div>
+        <div class="form-group">
+          <label class="label">Work Email</label>
+          <input type="email" id="ownerEmail" required placeholder="alex@acme.com"/>
+        </div>
+        <div class="form-group">
+          <label class="label">Industry</label>
+          <select id="industry">
+            <option value="services">Home Services</option>
+            <option value="real-estate">Real Estate</option>
+            <option value="legal">Legal</option>
+            <option value="logistics">Logistics</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="label">Plan</label>
+          <select id="plan">
+            <option value="starter">Starter</option>
+            <option value="professional">Professional</option>
+            <option value="growth">Growth</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%;">Create Workspace</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container text-center">
+    <p class="ui-text" style="color: rgba(255,255,255,0.6);">By signing up, you agree to our <a href="/terms" style="color:white;">Terms</a> and <a href="/privacy" style="color:white;">Privacy Policy</a>.</p>
+  </div>
+</footer>
+
+<script>
+const form = document.getElementById('signupForm');
+const errorEl = document.getElementById('error');
+const successEl = document.getElementById('success');
+
+function setError(message) {
+  errorEl.style.display = 'block';
+  errorEl.textContent = message;
+}
+function clearError() {
+  errorEl.style.display = 'none';
+  errorEl.textContent = '';
+}
+function setSuccess(message) {
+  successEl.style.display = 'block';
+  successEl.innerHTML = message;
+}
+
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  clearError();
+  successEl.style.display = 'none';
+
+  const payload = {
+    companyName: document.getElementById('companyName').value.trim(),
+    ownerName: document.getElementById('ownerName').value.trim(),
+    ownerEmail: document.getElementById('ownerEmail').value.trim(),
+    industry: document.getElementById('industry').value,
+    plan: document.getElementById('plan').value,
+  };
+
+  try {
+    const response = await fetch('/api/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      setError(result.error || 'Could not create workspace');
+      return;
+    }
+    setSuccess(
+      `Workspace created. <a href="${result.loginUrl}" style="font-weight:700; color:#166534;">Continue to login</a>.`,
+    );
+  } catch (error) {
+    setError('Network error. Please retry.');
+  }
+});
+</script>
+</body>
+</html>

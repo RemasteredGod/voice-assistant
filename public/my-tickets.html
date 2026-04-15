@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>My Tickets | Samadhan</title>
+  <title>My Tickets | CallPilot AI</title>
   <link rel="stylesheet" href="theme.css">
   <style>
     .ticket-card   { background: var(--color-surface-muted); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 1.5rem; }
@@ -24,10 +24,10 @@
   <div class="container">
     <div class="nav-inner">
       <a href="/" class="nav-brand">
-        <div style="font-size: 2rem;">🏛️</div>
+        <div style="font-size: 2rem;">📞</div>
         <div class="brand-text">
-          <span class="brand-name">Samadhan</span>
-          <span class="brand-sub">AI Citizen Helpline</span>
+          <span class="brand-name">CallPilot AI</span>
+          <span class="brand-sub">Customer Portal</span>
         </div>
       </a>
       <ul class="nav-links">
@@ -42,9 +42,9 @@
 <section class="section">
   <div class="container" style="max-width: 800px;">
     <div class="text-center mb-4">
-      <span class="label">Citizen Portal</span>
+      <span class="label">Customer Portal</span>
       <h1>Track Your Ticket</h1>
-      <p class="lead" id="page-lead">Login with your mobile number to view your complaint tickets, or search by Ticket ID.</p>
+      <p class="lead" id="page-lead">Login with your phone number to view your support tickets, or search by ticket ID.</p>
     </div>
 
     <!-- Search by Ticket ID (always visible) -->
@@ -52,7 +52,7 @@
       <div class="form-group" style="margin-bottom: 0;">
         <label class="label">Search by Ticket ID</label>
         <div style="display: flex; gap: 1rem;">
-          <input type="text" id="ticketIdInput" placeholder="e.g. DMC-20260325-0001" style="flex: 1;">
+          <input type="text" id="ticketIdInput" placeholder="e.g. SMB-20260415-0001" style="flex: 1;">
           <button class="btn btn-primary" id="searchBtn">Search</button>
         </div>
       </div>
@@ -78,7 +78,7 @@
 
 <footer class="footer">
   <div class="container text-center">
-    <p class="ui-text" style="color: rgba(255,255,255,0.5);">© 2026 Samadhan AI Citizen Helpline. Built for Delhi.</p>
+    <p class="ui-text" style="color: rgba(255,255,255,0.5);">© 2026 CallPilot AI. All rights reserved.</p>
   </div>
 </footer>
 
@@ -106,7 +106,7 @@
         if (role === 'citizen') {
           navLogin.style.display  = 'none';
           navLogout.style.display = 'block';
-          document.getElementById('page-lead').textContent = 'Showing all tickets linked to your mobile number.';
+          document.getElementById('page-lead').textContent = 'Showing all tickets linked to your phone number.';
           loadMyTickets();
         } else if (role === 'admin') {
           window.location.href = '/tickets';
@@ -180,13 +180,13 @@
     const notes = (t.notes || []).map(n => `
       <div class="note-item">
         <p class="ui-text" style="font-size:0.88rem;">${esc(n.text)}</p>
-        <p class="note-by">${esc(n.by)} — ${new Date(n.at).toLocaleString('en-IN')}</p>
+        <p class="note-by">${esc(n.by)} — ${new Date(n.at).toLocaleString('en-US')}</p>
       </div>`).join('');
 
     el.innerHTML = `
       <div class="ticket-header">
         <span class="ui-text" style="font-weight:800;color:var(--color-navy);font-size:1.05rem;">${esc(t.id)}</span>
-        <span class="badge ${t.status === 'Open' ? 'badge-pending' : 'badge-success'}">${esc(t.status)}</span>
+        <span class="badge ${t.status === 'open' ? 'badge-pending' : 'badge-success'}">${esc(t.status)}</span>
       </div>
       <div class="ticket-grid">
         <div class="ticket-field">
@@ -195,7 +195,7 @@
         </div>
         <div class="ticket-field">
           <span class="field-label">Date</span>
-          <span class="field-value">${new Date(t.createdAt).toLocaleDateString('en-IN')}</span>
+          <span class="field-value">${new Date(t.createdAt).toLocaleDateString('en-US')}</span>
         </div>
         <div class="ticket-field" style="grid-column:span 2;">
           <span class="field-label">Complaint</span>
@@ -213,7 +213,12 @@
   }
 
   function esc(s) {
-    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return String(s || '')
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   async function logout() {

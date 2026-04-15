@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Admin Dashboard | Samadhan</title>
+  <title>Admin Dashboard | CallPilot AI</title>
   <link rel="stylesheet" href="theme.css">
   <style>
     /* Dashboard specific refinements */
@@ -48,9 +48,9 @@
   <div class="container">
     <div class="nav-inner">
       <a href="/" class="nav-brand">
-        <div style="font-size: 2rem;">🏛️</div>
+        <div style="font-size: 2rem;">📞</div>
         <div class="brand-text">
-          <span class="brand-name">Samadhan</span>
+          <span class="brand-name">CallPilot AI</span>
           <span class="brand-sub">Admin Portal</span>
         </div>
       </a>
@@ -201,7 +201,7 @@
 
   function ticketRow(t, extraClass) {
     const date    = new Date(t.createdAt);
-    const dateStr = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+    const dateStr = date.toLocaleDateString('en-US', { day: '2-digit', month: 'short' });
     const statusClass = (t.status || 'open').replace(' ', '-');
     return '<tr class="' + (extraClass || '') + '">' +
       '<td style="font-weight:700; color:var(--color-navy);">' + esc(t.id) + '</td>' +
@@ -260,7 +260,7 @@
         '<td>' + sevChip(g.aggregateSeverity) + '</td>' +
         '<td><span class="status-pill status-' + statusClass + '">' + (rep.status || 'open') + '</span></td>' +
         '<td>' + (rep.files?.length ? '📎 ' + rep.files.length : '—') + '</td>' +
-        '<td>' + new Date(rep.createdAt).toLocaleDateString('en-IN') + '</td>' +
+        '<td>' + new Date(rep.createdAt).toLocaleDateString('en-US') + '</td>' +
         '<td><button class="action-link" data-action="status" data-id="' + rep.id + '" data-status="in-progress">Update</button></td>' +
         '</tr>';
 
@@ -275,7 +275,12 @@
   }
 
   function esc(s) {
-    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return String(s || '')
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   searchInput.addEventListener('input', render);
