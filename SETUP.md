@@ -54,6 +54,14 @@ ALLOWED_ORIGINS=https://your-domain.com
 DATABASE_URL=postgres://user:pass@localhost:5432/callpilot
 REDIS_URL=redis://localhost:6379
 PG_SSL=false
+STORAGE_PROVIDER=local
+# For S3 mode:
+# STORAGE_PROVIDER=s3
+# S3_BUCKET=your-bucket
+# S3_REGION=us-east-1
+# S3_ENDPOINT=
+# S3_ACCESS_KEY_ID=
+# S3_SECRET_ACCESS_KEY=
 
 TWILIO_ACCOUNT_SID=AC...
 TWILIO_AUTH_TOKEN=...
@@ -70,6 +78,9 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_PRICE_STARTER=price_...
 STRIPE_PRICE_PROFESSIONAL=price_...
 STRIPE_PRICE_GROWTH=price_...
+
+SENTRY_DSN=
+SENTRY_TRACES_SAMPLE_RATE=0
 ```
 
 ### Google Credentials Setup
@@ -232,6 +243,8 @@ npm run mobile:start
 | GET | `/api/org/overview` | Organization plan and billing overview |
 | POST | `/api/billing/checkout` | Create Stripe checkout session |
 | POST | `/api/billing/webhook` | Stripe webhook receiver |
+| GET | `/api/health` | Service health and storage mode |
+| GET | `/api/metrics` | Runtime counters (owner/admin only) |
 | GET | `/api/tickets` | All tickets (admin only) |
 | GET | `/api/my-tickets` | Customer's own tickets |
 | POST | `/api/tickets` | Create a ticket (customer) |

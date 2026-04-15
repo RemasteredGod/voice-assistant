@@ -18,10 +18,6 @@ const twilio = require('twilio');
 const { WebSocketServer } = require('ws');
 const busboy = require('busboy');
 
-// Ensure uploads directory exists
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
-fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-
 const { handleConnection }                                 = require('./lib/ws-handler');
 const { transcriptBus, getOrCreateBrowserSession,
         updateBrowserSession }                             = require('./lib/session');
@@ -36,6 +32,8 @@ const { sendOtpEmail }  = require('./lib/email');
 const { initDatabase, hasPostgres, query } = require('./lib/db');
 const { connectRedis } = require('./lib/cache');
 const { createCheckoutSession, upsertSubscription, verifyStripeWebhook, stripeEnabled } = require('./lib/billing');
+const { saveUpload, getDownloadUrl, provider: storageProvider } = require('./lib/storage');
+const { increment, captureError, getMetricsSnapshot } = require('./lib/observability');
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 const APP_NAME = process.env.APP_NAME || 'CallPilot AI';
@@ -45,6 +43,15 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || PUBLIC_APP_ORIGIN || '')
 const MAX_JSON_BODY_BYTES = 256 * 1024;
 const rateLimitBuckets = new Map();
 const STRIPE_WEBHOOK_PATH = '/api/billing/webhook';
+const TEAM_ROLES = new Set(['owner', 'admin', 'agent']);
+const ALLOWED_UPLOAD_MIME = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'application/pdf',
+  'video/mp4',
+]);
 
 const PORT       = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -257,6 +264,18 @@ function getPlanLimits(plan) {
   return { callsPerMonth: 500, teamSeats: 3 };
 }
 
+function isTeamMember(session) {
+  return Boolean(session && TEAM_ROLES.has(session.role));
+}
+
+function canManageTeam(session) {
+  return Boolean(session && (session.role === 'owner' || session.role === 'admin'));
+}
+
+function canManageBilling(session) {
+  return Boolean(session && (session.role === 'owner' || session.role === 'admin'));
+}
+
 setInterval(() => {
   const now = Date.now();
   for (const [key, bucket] of rateLimitBuckets) {
@@ -279,6 +298,7 @@ async function requestHandler(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const p   = url.pathname;
   const requestId = crypto.randomBytes(8).toString('hex');
+  increment('requestsTotal');
   const startedAt = Date.now();
   res.setHeader('X-Request-Id', requestId);
   res.on('finish', () => {
@@ -321,12 +341,12 @@ async function requestHandler(req, res) {
 
     // Admin-only pages
     if (p === '/tickets') {
-      if (!session || session.role !== 'admin') { res.writeHead(302, { Location: '/login?next=/tickets' }); res.end(); return; }
+      if (!isTeamMember(session)) { res.writeHead(302, { Location: '/login?next=/tickets' }); res.end(); return; }
       serveFile(res, path.join(PUBLIC_DIR, 'tickets.html'));
       return;
     }
     if (p === '/api/tickets') {
-      if (!session || session.role !== 'admin') { json(res, 401, { error: 'Unauthorized' }); return; }
+      if (!isTeamMember(session)) { json(res, 401, { error: 'Unauthorized' }); return; }
       const tickets = await getAllTickets(currentOrgId);
       json(res, 200, tickets);
       return;
@@ -349,6 +369,22 @@ async function requestHandler(req, res) {
         orgId: session.orgId || null,
         name: me?.name || null,
       });
+      return;
+    }
+
+    if (p === '/api/health') {
+      json(res, 200, {
+        ok: true,
+        storageProvider,
+        hasPostgres,
+        now: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (p === '/api/metrics') {
+      if (!canManageTeam(session)) { json(res, 401, { error: 'Unauthorized' }); return; }
+      json(res, 200, getMetricsSnapshot());
       return;
     }
 
@@ -436,7 +472,7 @@ async function requestHandler(req, res) {
 
   // ── POST /api/call — initiate outbound call via Twilio ───────────────────
   if (p === '/api/call' && req.method === 'POST') {
-    if (!session || session.role !== 'admin') { json(res, 401, { error: 'Unauthorized' }); return; }
+    if (!isTeamMember(session)) { json(res, 401, { error: 'Unauthorized' }); return; }
     if (!checkRateLimit(req, 'api-call', 30, 60_000)) {
       json(res, 429, { error: 'Rate limit exceeded. Try again in a minute.' });
       return;
@@ -456,7 +492,7 @@ async function requestHandler(req, res) {
       transcriptBus.emit('transcript', { type: 'call_started', callSid: call.sid, to });
       json(res, 200, { callSid: call.sid, status: call.status });
     } catch (err) {
-      console.error('[/api/call]', err.message);
+      captureError(err, { route: '/api/call' });
       json(res, 500, { error: err.message });
     }
     return;
@@ -464,13 +500,14 @@ async function requestHandler(req, res) {
 
   // ── POST /api/call/end — end active call ─────────────────────────────────
   if (p === '/api/call/end' && req.method === 'POST') {
-    if (!session || session.role !== 'admin') { json(res, 401, { error: 'Unauthorized' }); return; }
+    if (!isTeamMember(session)) { json(res, 401, { error: 'Unauthorized' }); return; }
     try {
       const { callSid } = await readBody(req);
       // Signal the frontend that the call ended
       transcriptBus.emit('transcript', { type: 'call_ended', callSid });
       json(res, 200, { ok: true });
     } catch (err) {
+      captureError(err, { route: '/api/call/end' });
       json(res, 500, { error: err.message });
     }
     return;
@@ -522,8 +559,8 @@ async function requestHandler(req, res) {
       }
       const { text, sessionId = 'browser-default' } = await readBody(req);
       if (!text || typeof text !== 'string') { json(res, 400, { error: 'Missing text' }); return; }
-      const session = getOrCreateBrowserSession(sessionId);
-      const { reply, updatedHistory, functionCall } = await getReply(session.history, text.trim());
+      const browserSession = getOrCreateBrowserSession(sessionId);
+      const { reply, updatedHistory, functionCall } = await getReply(browserSession.history, text.trim());
       updateBrowserSession(sessionId, updatedHistory);
       let finalReply = reply;
       if (functionCall?.name === 'create_ticket' && functionCall?.args?.name && functionCall?.args?.phone && functionCall?.args?.complaint) {
@@ -548,7 +585,7 @@ async function requestHandler(req, res) {
       const audioBase64 = await synthesizeForBrowser(finalReply);
       json(res, 200, { reply: finalReply, audioBase64 });
     } catch (err) {
-      console.error('[/api/chat]', err.message);
+      captureError(err, { route: '/api/chat' });
       json(res, 500, { error: 'Internal server error' });
     }
     return;
@@ -556,7 +593,7 @@ async function requestHandler(req, res) {
 
   // ── GET /api/transcripts — SSE live feed ──────────────────────────────────
   if (p === '/api/transcripts' && req.method === 'GET') {
-    if (!session || session.role !== 'admin') { json(res, 401, { error: 'Unauthorized' }); return; }
+    if (!isTeamMember(session)) { json(res, 401, { error: 'Unauthorized' }); return; }
     res.writeHead(200, {
       'Content-Type':  'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -585,7 +622,11 @@ async function requestHandler(req, res) {
     if (type === 'admin') {
       const email = identifier.toLowerCase().trim();
       const adminAllowed = ADMIN_EMAILS.length > 0 && ADMIN_EMAILS.includes(email);
-      if (!adminAllowed && !org) { json(res, 403, { error: 'Not an admin email.' }); return; }
+      if (!adminAllowed && !org) {
+        increment('authFailures');
+        json(res, 403, { error: 'Not an admin email.' });
+        return;
+      }
       const otp = await createOtp(email, orgId, 'admin');
       try {
         await sendOtpEmail(email, otp);
@@ -628,9 +669,29 @@ async function requestHandler(req, res) {
       : normalizePhoneForUs(identifier);
 
     const result = await verifyOtp(id, otp, type === 'admin' ? 'admin' : 'citizen');
-    if (!result.ok) { json(res, 401, { error: result.reason }); return; }
+    if (!result.ok) {
+      increment('authFailures');
+      json(res, 401, { error: result.reason });
+      return;
+    }
 
-    const role  = type === 'admin' ? 'admin' : 'citizen';
+    let role = 'citizen';
+    if (type === 'admin') {
+      if (hasPostgres && orgId !== DEFAULT_ORG_ID) {
+        const { rows } = await query(
+          `SELECT role FROM users WHERE org_id = $1 AND identifier = $2 LIMIT 1`,
+          [orgId, id],
+        );
+        if (!rows[0]?.role || !TEAM_ROLES.has(rows[0].role)) {
+          increment('authFailures');
+          json(res, 403, { error: 'No team role found for this account.' });
+          return;
+        }
+        role = rows[0].role;
+      } else {
+        role = 'owner';
+      }
+    }
     const token = await createSession(id, role, orgId);
 
     const isHttps = (req.headers['x-forwarded-proto'] || '').includes('https') || process.env.BASE_URL?.startsWith('https');
@@ -672,7 +733,7 @@ async function requestHandler(req, res) {
     );
     await query(
       `INSERT INTO users (id, org_id, name, identifier, role)
-       VALUES ($1,$2,$3,$4,'admin')`,
+       VALUES ($1,$2,$3,$4,'owner')`,
       [ownerId, orgId, ownerName || ownerEmail, ownerEmail.toLowerCase().trim()],
     );
     await upsertSubscription(orgId, { status: 'trialing' });
@@ -687,10 +748,12 @@ async function requestHandler(req, res) {
 
   // ── POST /api/org/invite — invite teammate ────────────────────────────────
   if (p === '/api/org/invite' && req.method === 'POST') {
-    if (!session || session.role !== 'admin') { json(res, 401, { error: 'Unauthorized' }); return; }
+    if (!canManageTeam(session)) { json(res, 401, { error: 'Unauthorized' }); return; }
     if (!hasPostgres) { json(res, 503, { error: 'Invites require DATABASE_URL configuration.' }); return; }
     const { email, role = 'agent' } = await readBody(req);
     if (!email) { json(res, 400, { error: 'email is required' }); return; }
+    if (!TEAM_ROLES.has(role)) { json(res, 400, { error: 'role must be owner, admin, or agent' }); return; }
+    if (role === 'owner' && session.role !== 'owner') { json(res, 403, { error: 'Only owner can invite another owner.' }); return; }
     const token = crypto.randomBytes(24).toString('hex');
     await query(
       `INSERT INTO invites (id, org_id, email, role, token, expires_at)
@@ -704,7 +767,7 @@ async function requestHandler(req, res) {
 
   // ── POST /api/billing/checkout — start subscription checkout ──────────────
   if (p === '/api/billing/checkout' && req.method === 'POST') {
-    if (!session || session.role !== 'admin') { json(res, 401, { error: 'Unauthorized' }); return; }
+    if (!canManageBilling(session)) { json(res, 401, { error: 'Unauthorized' }); return; }
     if (!hasPostgres) { json(res, 503, { error: 'Billing requires DATABASE_URL configuration.' }); return; }
     const { plan = 'starter' } = await readBody(req);
     const { rows } = await query(`SELECT id, name, owner_email FROM organizations WHERE id = $1 LIMIT 1`, [currentOrgId]);
@@ -730,6 +793,7 @@ async function requestHandler(req, res) {
     const raw = await readRawBody(req);
     const event = verifyStripeWebhook(raw, signature);
     if (!event) {
+      increment('billingFailures');
       json(res, 200, { ok: true, skipped: true });
       return;
     }
@@ -803,6 +867,7 @@ async function requestHandler(req, res) {
     if (trimComplaint.length < 10 || trimComplaint.length > 2000) { json(res, 400, { error: 'Complaint must be 10-2000 characters' }); return; }
     const phone = session.id;
     const ticket = await createTicket(trimName, phone, trimComplaint, severityScore || 5, currentOrgId);
+    increment('ticketCreates');
     const uploadUrl = `${getPublicBase(req)}/upload/${ticket.uploadToken}`;
     sendTicketSms(phone, ticket.id, uploadUrl).catch((e) => console.error('[SMS]', e.message));
     await logAudit('ticket.created', session, { ticketId: ticket.id });
@@ -812,7 +877,7 @@ async function requestHandler(req, res) {
 
   // ── PATCH /api/admin/ticket/:id/status — admin update status ─────────────
   if (p.match(/^\/api\/admin\/ticket\/([^/]+)\/status$/) && req.method === 'PATCH') {
-    if (!session || session.role !== 'admin') { json(res, 401, { error: 'Unauthorized' }); return; }
+    if (!isTeamMember(session)) { json(res, 401, { error: 'Unauthorized' }); return; }
     const ticketId = p.split('/')[4];
     const { status, note } = await readBody(req);
     const ticket = await getTicket(ticketId);
@@ -857,7 +922,14 @@ async function requestHandler(req, res) {
     const { ticket, error } = await getTicketByToken(tokenApiMatch[1]);
     if (error === 'expired') { json(res, 410, { error: 'This upload link has expired.' }); return; }
     if (!ticket) { json(res, 404, { error: 'Invalid upload link.' }); return; }
-    json(res, 200, ticket);
+    const files = await Promise.all((ticket.files || []).map(async (file) => ({
+      filename: file.filename,
+      originalName: file.originalName,
+      mimeType: file.mimeType,
+      uploadedAt: file.uploadedAt,
+      signedUrl: await getDownloadUrl(file),
+    })));
+    json(res, 200, { ...ticket, files });
     return;
   }
 
@@ -868,7 +940,7 @@ async function requestHandler(req, res) {
     const ticket = await getTicket(ticketApiMatch[1]);
     if (!ticket) { json(res, 404, { error: 'Ticket not found' }); return; }
     if (session.role === 'citizen' && ticket.phone !== session.id) { json(res, 403, { error: 'Forbidden' }); return; }
-    if (session.role === 'admin' && ticket.orgId !== currentOrgId) { json(res, 403, { error: 'Forbidden' }); return; }
+    if (isTeamMember(session) && ticket.orgId !== currentOrgId) { json(res, 403, { error: 'Forbidden' }); return; }
     json(res, 200, ticket);
     return;
   }
@@ -886,33 +958,58 @@ async function requestHandler(req, res) {
       json(res, 400, { error: 'Expected multipart/form-data' }); return;
     }
 
-    const ticketDir = path.join(UPLOADS_DIR, ticketId);
-    fs.mkdirSync(ticketDir, { recursive: true });
-
     const bb = busboy({ headers: req.headers, limits: { fileSize: 10 * 1024 * 1024 } });
-    const savedFiles = [];
+    const uploads = [];
 
     bb.on('file', (fieldname, fileStream, info) => {
       const { filename, mimeType } = info;
-      const safeName = `${Date.now()}-${path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      const destPath = path.join(ticketDir, safeName);
-      const writeStream = fs.createWriteStream(destPath);
-
-      fileStream.pipe(writeStream);
-      writeStream.on('finish', () => {
-        const meta = { filename: safeName, originalName: filename, mimeType, uploadedAt: new Date().toISOString() };
-        addFile(ticketId, meta).catch((err) => console.error('[UPLOAD] addFile error:', err.message));
-        savedFiles.push(meta);
-        console.log(`[UPLOAD] ${ticketId} — saved: ${safeName}`);
-      });
+      if (!ALLOWED_UPLOAD_MIME.has(mimeType)) {
+        fileStream.resume();
+        return;
+      }
+      uploads.push(new Promise((resolve, reject) => {
+        const chunks = [];
+        fileStream.on('data', (chunk) => chunks.push(chunk));
+        fileStream.on('end', async () => {
+          try {
+            const saved = await saveUpload({
+              ticketId,
+              originalName: filename,
+              mimeType,
+              buffer: Buffer.concat(chunks),
+            });
+            const meta = {
+              filename: saved.filename,
+              originalName: filename,
+              mimeType: saved.mimeType,
+              storageProvider: saved.storageProvider,
+              storageKey: saved.storageKey,
+              uploadedAt: new Date().toISOString(),
+            };
+            await addFile(ticketId, meta);
+            resolve(meta);
+          } catch (error) {
+            reject(error);
+          }
+        });
+        fileStream.on('error', reject);
+      }));
     });
 
-    bb.on('finish', () => {
-      json(res, 200, { success: true, filesCount: ticket.files.length + savedFiles.length });
+    bb.on('finish', async () => {
+      try {
+        const savedFiles = await Promise.all(uploads);
+        json(res, 200, { success: true, filesCount: (ticket.files?.length || 0) + savedFiles.length });
+      } catch (error) {
+        increment('uploadFailures');
+        captureError(error, { route: '/api/upload/:token' });
+        json(res, 500, { error: 'Upload failed' });
+      }
     });
 
     bb.on('error', (err) => {
-      console.error('[UPLOAD] busboy error:', err.message);
+      increment('uploadFailures');
+      captureError(err, { route: '/api/upload/:token:busboy' });
       json(res, 500, { error: 'Upload failed' });
     });
 

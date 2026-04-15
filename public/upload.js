@@ -67,7 +67,9 @@
     uploadedList.innerHTML = files.map(f => `
       <div class="file-item">
         <span class="file-icon">${fileIcon(f.mimeType)}</span>
-        <span class="file-name">${esc(f.originalName)}</span>
+        ${f.signedUrl
+          ? `<a class="file-name" href="${esc(f.signedUrl)}" target="_blank" rel="noopener noreferrer">${esc(f.originalName)}</a>`
+          : `<span class="file-name">${esc(f.originalName)}</span>`}
         <span class="file-status">✅</span>
       </div>
     `).join('');

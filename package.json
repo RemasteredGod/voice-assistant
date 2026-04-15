@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "lint": "node --check server.js && node --check lib/auth-store.js && node --check lib/ticket-store.js && node --check lib/db.js && node --check lib/billing.js",
+    "lint": "node --check server.js && node --check lib/auth-store.js && node --check lib/ticket-store.js && node --check lib/db.js && node --check lib/billing.js && node --check lib/storage.js && node --check lib/observability.js",
     "test": "node --test",
     "tunnel": "node tunnel.js",
     "mobile:start": "cd mobile && npm start",
@@ -15,10 +15,13 @@
     "mobile:web": "cd mobile && npm run web"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1030.0",
+    "@aws-sdk/s3-request-presigner": "^3.1030.0",
     "@google-cloud/speech": "^6.7.0",
     "@google-cloud/text-to-speech": "^5.3.0",
     "@google/genai": "^1.46.0",
     "@google/generative-ai": "^0.21.0",
+    "@sentry/node": "^10.48.0",
     "busboy": "^1.6.0",
     "dotenv": "^16.6.1",
     "ioredis": "^5.10.1",

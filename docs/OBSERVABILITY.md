@@ -3,6 +3,8 @@
 ## Logging
 - Capture structured logs for auth, billing, ticketing, and webhooks.
 - Include event type, org id, actor id, request id, and status.
+- Runtime metrics endpoint: `GET /api/metrics` (owner/admin only).
+- Health endpoint: `GET /api/health`.
 
 ## Core Alerts
 - OTP send failure rate above threshold
@@ -15,6 +17,7 @@
 - Call pipeline events by status
 - Billing state distribution (trialing/active/past_due)
 - Error rate by endpoint
+- Upload storage mode and failures (local vs s3)
 
 ## SLO Targets
 - Ticket creation success: >= 99%
