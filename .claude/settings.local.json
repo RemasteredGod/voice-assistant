@@ -41,7 +41,10 @@
       "WebFetch(domain:www.npmjs.com)",
       "WebSearch",
       "WebFetch(domain:help.twilio.com)",
-      "Bash(grep -E \"\\\\.html$\")"
+      "Bash(grep -E \"\\\\.html$\")",
+      "Bash(grep:*)",
+      "Bash(\"B:/delhi hackathon:*)",
+      "Bash(cmd //c \"start chrome \"\"B:\\\\delhi hackathon imp\\\\story.html\"\"\")"
     ]
   }
 }

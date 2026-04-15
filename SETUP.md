@@ -1,9 +1,11 @@
-# DMC Jarvis AI Voice Agent — Setup Guide
+# CallPilot AI — Setup and Launch Guide
 
 ## Prerequisites
 
 - **Node.js** v18+ — [nodejs.org](https://nodejs.org/)
-- **ngrok** CLI (for Twilio webhook tunneling) — [ngrok.com/download](https://ngrok.com/download)
+- **PostgreSQL** 14+
+- **Redis** 6+
+- **ngrok** CLI (optional for local webhook testing) — [ngrok.com/download](https://ngrok.com/download)
 - **Expo CLI** (for the mobile app) — installed automatically via `npx`
 - **Expo Go** app on your phone (Android/iOS) — for testing the mobile app
 
@@ -15,6 +17,7 @@
 | Google Cloud | Speech-to-Text + Text-to-Speech | [cloud.google.com](https://cloud.google.com/) |
 | Google Gemini | AI chat/reasoning | [ai.google.dev](https://ai.google.dev/) |
 | Gmail (App Password) | Admin OTP emails | [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) |
+| Stripe | SaaS subscriptions | [stripe.com](https://stripe.com/) |
 
 ---
 
@@ -40,33 +43,33 @@ Copy the example file and fill in your credentials:
 cp .env.example .env
 ```
 
-Edit `.env` with the following values:
+Edit `.env` with the values in `.env.example`. Required keys:
 
 ```env
 PORT=3000
+BASE_URL=https://your-domain.com
+PUBLIC_APP_ORIGIN=https://your-domain.com
+ALLOWED_ORIGINS=https://your-domain.com
 
-# ── Twilio ────────────────────────────────────────────
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_PHONE_NUMBER=+1xxxxxxxxxx
+DATABASE_URL=postgres://user:pass@localhost:5432/callpilot
+REDIS_URL=redis://localhost:6379
+PG_SSL=false
 
-# ── Google Cloud (Speech-to-Text / Text-to-Speech) ───
-# Option A: path to service account JSON file
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=...
+TWILIO_PHONE_NUMBER=+1...
+
 GOOGLE_APPLICATION_CREDENTIALS=./google-credentials.json
-# Option B: inline JSON string (for cloud hosting)
-# GOOGLE_CREDENTIALS_JSON={"type":"service_account",...}
+GEMINI_API_KEY=...
 
-# ── Gemini AI ─────────────────────────────────────────
-GEMINI_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-# ── Public URL (set automatically by tunnel.js) ──────
-# Only set manually if you're deploying to a server
-# BASE_URL=https://your-domain.com
-
-# ── Admin Login (email OTP) ──────────────────────────
-ADMIN_EMAILS=admin@example.com,admin2@example.com
 EMAIL_USER=your-gmail@gmail.com
-EMAIL_PASS=xxxx-xxxx-xxxx-xxxx   # Gmail App Password, NOT your regular password
+EMAIL_PASS=your-gmail-app-password
+
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_STARTER=price_...
+STRIPE_PRICE_PROFESSIONAL=price_...
+STRIPE_PRICE_GROWTH=price_...
 ```
 
 ### Google Credentials Setup
@@ -97,16 +100,18 @@ The server starts on `http://localhost:3000` with these pages:
 
 | URL | Description |
 |-----|-------------|
-| `http://localhost:3000/` | Main dashboard |
+| `http://localhost:3000/` | Marketing homepage |
+| `http://localhost:3000/signup` | Self-serve onboarding |
+| `http://localhost:3000/pricing` | Pricing page |
 | `http://localhost:3000/simulation` | Voice call simulation (browser mic) |
-| `http://localhost:3000/samadhan` | Jarvis chat interface |
+| `http://localhost:3000/samadhan` | Browser chat interface |
 | `http://localhost:3000/login` | Login page (citizen / admin) |
-| `http://localhost:3000/my-tickets` | Citizen ticket list |
+| `http://localhost:3000/my-tickets` | Customer ticket list |
 | `http://localhost:3000/tickets` | Admin ticket dashboard (requires login) |
 
 ---
 
-## 4. Expose Server via ngrok (for Twilio)
+## 4. Expose Server via ngrok (for Twilio local testing)
 
 Twilio needs a public HTTPS URL to send incoming calls to your local server.
 
@@ -222,9 +227,14 @@ npm run mobile:start
 | POST | `/api/auth/verify-otp` | Verify OTP and create session |
 | POST | `/api/auth/logout` | Logout |
 | GET | `/api/auth/me` | Current user info |
+| POST | `/api/signup` | Create organization and owner account |
+| POST | `/api/org/invite` | Invite teammate (admin only) |
+| GET | `/api/org/overview` | Organization plan and billing overview |
+| POST | `/api/billing/checkout` | Create Stripe checkout session |
+| POST | `/api/billing/webhook` | Stripe webhook receiver |
 | GET | `/api/tickets` | All tickets (admin only) |
-| GET | `/api/my-tickets` | Citizen's own tickets |
-| POST | `/api/tickets` | Create a ticket (citizen) |
+| GET | `/api/my-tickets` | Customer's own tickets |
+| POST | `/api/tickets` | Create a ticket (customer) |
 | PATCH | `/api/admin/ticket/:id/status` | Update ticket status (admin) |
 | GET | `/api/ticket/:id` | Get ticket by ID |
 | GET | `/api/upload/:token` | Get ticket info via upload token |
@@ -237,8 +247,17 @@ npm run mobile:start
 | Problem | Solution |
 |---------|----------|
 | `Missing TWILIO_ACCOUNT_SID` | Check your `.env` file has valid Twilio credentials |
+| `Signup requires DATABASE_URL` | Configure Postgres and restart the app |
+| Session/login instability | Verify `REDIS_URL` and database connectivity |
+| Stripe checkout not working | Ensure Stripe keys and price IDs are set in `.env` |
 | `Missing EMAIL_USER / EMAIL_PASS` | Add Gmail credentials for admin OTP emails |
 | ngrok not found | Install ngrok CLI: `npm install -g ngrok` or download from ngrok.com |
 | Mobile app can't connect | Ensure phone and computer are on the same Wi-Fi; set `EXPO_PUBLIC_BASE_URL` |
 | Google STT/TTS errors | Verify `google-credentials.json` exists and APIs are enabled in Google Cloud |
 | Port 3000 in use | Change `PORT` in `.env` or stop the other process |
+
+## Operational Docs
+- Runbook: `docs/OPERATIONS_RUNBOOK.md`
+- Observability checklist: `docs/OBSERVABILITY.md`
+- KPI tracking: `docs/LAUNCH_KPI_DASHBOARD.md`
+- Pilot execution: `docs/PILOT_PROGRAM.md`

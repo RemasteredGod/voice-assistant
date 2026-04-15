@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Login | Samadhan</title>
+  <title>Login | CallPilot AI</title>
   <link rel="stylesheet" href="theme.css">
   <style>
     body { display: flex; flex-direction: column; min-height: 100vh; }
@@ -27,10 +27,10 @@
   <div class="container">
     <div class="nav-inner">
       <a href="/" class="nav-brand">
-        <div style="font-size: 2rem;">🏛️</div>
+        <div style="font-size: 2rem;">📞</div>
         <div class="brand-text">
-          <span class="brand-name">Samadhan</span>
-          <span class="brand-sub">AI Citizen Helpline</span>
+          <span class="brand-name">CallPilot AI</span>
+          <span class="brand-sub">Customer Portal Login</span>
         </div>
       </a>
       <a href="/" class="btn btn-secondary">Home</a>
@@ -42,10 +42,10 @@
   <div class="card login-card text-center">
     <div style="font-size: 3rem; margin-bottom: 0.5rem;">🔐</div>
     <h2 style="margin-bottom: 0.25rem;">Login</h2>
-    <p class="ui-text mb-2" style="color: var(--color-text-muted);">Delhi Municipal Corporation Portal</p>
+    <p class="ui-text mb-2" style="color: var(--color-text-muted);">Team and customer access portal</p>
 
     <div class="tab-bar">
-      <button class="tab-btn active" id="tab-citizen">Citizen</button>
+      <button class="tab-btn active" id="tab-citizen">Customer</button>
       <button class="tab-btn" id="tab-admin">Admin</button>
     </div>
 
@@ -54,10 +54,10 @@
       <!-- Step 1: Phone -->
       <div class="step active" id="c-step1">
         <div class="form-group" style="text-align: left;">
-          <label class="label">Mobile Number</label>
-          <input type="tel" id="c-phone" placeholder="98765 43210" maxlength="10" inputmode="numeric">
+          <label class="label">Phone Number</label>
+          <input type="tel" id="c-phone" placeholder="(555) 123-4567" maxlength="15" inputmode="numeric">
         </div>
-        <p class="hint">Enter your 10-digit mobile number. An OTP will be sent via SMS.</p>
+        <p class="hint">Enter your US phone number. An OTP will be sent via SMS.</p>
         <button class="btn btn-primary" style="width:100%; padding:1rem;" id="c-send-btn">Send OTP</button>
       </div>
 
@@ -113,13 +113,15 @@
 
 <footer class="footer" style="padding: 2rem 0;">
   <div class="container text-center">
-    <p class="ui-text" style="color: rgba(255,255,255,0.5);">© 2026 Samadhan. Authorised Personnel Only.</p>
+    <p class="ui-text" style="color: rgba(255,255,255,0.5);">© 2026 CallPilot AI. Authorized personnel only.</p>
   </div>
 </footer>
 
 <script>
 (function () {
   'use strict';
+  const org = new URLSearchParams(window.location.search).get('org');
+  const withOrg = (path) => org ? `${path}?org=${encodeURIComponent(org)}` : path;
 
   const errorMsg = document.getElementById('error-msg');
   function showError(msg) { errorMsg.textContent = msg; errorMsg.style.display = 'block'; }
@@ -177,20 +179,20 @@
   document.getElementById('c-send-btn').addEventListener('click', async () => {
     clearError();
     const raw = document.getElementById('c-phone').value.replace(/\D/g, '');
-    if (raw.length !== 10) { showError('Enter a valid 10-digit mobile number'); return; }
+    if (raw.length < 10) { showError('Enter a valid phone number'); return; }
     citizenPhone = raw;
 
     const btn = document.getElementById('c-send-btn');
     btn.disabled = true; btn.textContent = 'Sending…';
     try {
-      const res = await fetch('/api/auth/send-otp', {
+      const res = await fetch(withOrg('/api/auth/send-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: citizenPhone, type: 'citizen' }),
       });
       const data = await res.json();
       if (!res.ok) { showError(data.error || 'Failed to send OTP'); return; }
-      document.getElementById('c-phone-display').textContent = '+91 ' + citizenPhone;
+      document.getElementById('c-phone-display').textContent = citizenPhone;
       document.getElementById('c-step1').classList.remove('active');
       document.getElementById('c-step2').classList.add('active');
       document.querySelector('#c-otp-inputs input').focus();
@@ -206,7 +208,7 @@
     const btn = document.getElementById('c-verify-btn');
     btn.disabled = true; btn.textContent = 'Verifying…';
     try {
-      const res = await fetch('/api/auth/verify-otp', {
+      const res = await fetch(withOrg('/api/auth/verify-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: citizenPhone, otp, type: 'citizen' }),
@@ -237,7 +239,7 @@
     const btn = document.getElementById('a-send-btn');
     btn.disabled = true; btn.textContent = 'Sending…';
     try {
-      const res = await fetch('/api/auth/send-otp', {
+      const res = await fetch(withOrg('/api/auth/send-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: adminEmail, type: 'admin' }),
@@ -260,7 +262,7 @@
     const btn = document.getElementById('a-verify-btn');
     btn.disabled = true; btn.textContent = 'Verifying…';
     try {
-      const res = await fetch('/api/auth/verify-otp', {
+      const res = await fetch(withOrg('/api/auth/verify-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: adminEmail, otp, type: 'admin' }),

@@ -1,11 +1,13 @@
 {
-  "name": "jarvis-voice-agent",
+  "name": "callpilot-ai",
   "version": "1.0.0",
-  "description": "AI Voice Agent — Twilio + Google STT/TTS + Gemini",
+  "description": "AI call assistant SaaS with ticketing and billing",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
+    "lint": "node --check server.js && node --check lib/auth-store.js && node --check lib/ticket-store.js && node --check lib/db.js && node --check lib/billing.js",
+    "test": "node --test",
     "tunnel": "node tunnel.js",
     "mobile:start": "cd mobile && npm start",
     "mobile:android": "cd mobile && npm run android",
@@ -19,8 +21,11 @@
     "@google/generative-ai": "^0.21.0",
     "busboy": "^1.6.0",
     "dotenv": "^16.6.1",
+    "ioredis": "^5.10.1",
     "ngrok": "^5.0.0-beta.2",
     "nodemailer": "^8.0.4",
+    "pg": "^8.20.0",
+    "stripe": "^22.0.1",
     "twilio": "^5.3.7",
     "ws": "^8.18.0"
   }

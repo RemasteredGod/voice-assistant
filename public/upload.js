@@ -50,7 +50,7 @@
   }
 
   function renderTicket(t) {
-    const expiry = new Date(t.uploadExpiry).toLocaleString('en-IN');
+    const expiry = new Date(t.uploadExpiry).toLocaleString('en-US');
     ticketCard.innerHTML = `
       <div class="ticket-id">🎫 ${esc(t.id)}</div>
       <div class="ticket-row"><span class="ticket-label">Name</span><span class="ticket-value">${esc(t.name)}</span></div>
@@ -157,7 +157,12 @@
 
   // ── Utils ─────────────────────────────────────────────────────────────────
   function esc(s) {
-    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return String(s || '')
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
   function formatSize(b) {
     if (b < 1024) return b + ' B';

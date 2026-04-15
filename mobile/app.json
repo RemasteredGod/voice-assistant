@@ -8,6 +8,13 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "android": {}
+    "android": {
+      "package": "com.ashutoshpa.jarvismobile"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e0a0aa7e-a74f-447c-b35b-c336aa5acf80"
+      }
+    }
   }
 }
